@@ -19,7 +19,7 @@ from .dailyfile import write_daily
 from .items import tidy_name, place, title
 from .names import attrs as read_attrs, normalize
 from .run import _brand_id, ro_today
-from .sizes import priced_per_piece, parse_size
+from .sizes import parse_size, portion_size, priced_per_piece
 
 FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalog")
 
@@ -97,6 +97,33 @@ def _own_brands(conn, cat, learned: dict) -> dict:
     return {k: v for k, v in learned.items() if " " in k or holds[k] == 0 or same[k] * 2 >= holds[k]}
 
 
+def _fix_portions(conn, cat, medians: dict) -> int:
+    """A multipack priced per portion: its price per kg is under a tenth of its kind's while the portion's price per kg
+    fits ("Meggle Unt 100x10g" at 0,77 lei) -> the pack is one portion; a sack of 5 kg or more priced per kg ("Zahar 25 Kg"
+    at 4,99 lei) -> 1 kg. Returns how many were fixed."""
+    from statistics import median
+    rows = conn.execute("SELECT p.id, p.name, p.size_qty, p.size_unit, p.item_id, i.attrs FROM products p "
+                        "LEFT JOIN product_info i ON i.product_id = p.id WHERE p.item_id IS NOT NULL AND p.size_qty > 0").fetchall()
+    kinds = {}
+    for pid, name, sq, su, item, attrs in rows:
+        if pid in medians:
+            kinds.setdefault((item, attrs, su), []).append(medians[pid] / sq)
+    fixed = 0
+    for pid, name, sq, su, item, attrs in rows:
+        group, part = kinds.get((item, attrs, su), []), portion_size(normalize(name, cat.abbrev))
+        if not part and sq >= 5000 and su in ("g", "ml"):
+            part = (1000, su)  # a bulk sack (Selgros, Metro) priced per kg
+        if pid not in medians or not part or part[1] != su or len(group) < 3:
+            continue
+        mid, price = median(group), medians[pid]
+        if price / sq * 10 < mid and mid / 4 <= price / part[0] <= mid * 4:
+            row = conn.execute("SELECT name, title, brand_id, item_id, category_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
+            db.write(conn, "products", dict(zip(("name", "title", "brand_id", "item_id", "category_id", "barcode"), row),
+                                            id=pid, size_qty=part[0], size_unit=part[1]), replace=True)
+            fixed += 1
+    return fixed
+
+
 def _median_prices(conn) -> dict:
     """Each product's middle price today across the zones."""
     from robot.history import current_zone_prices
@@ -152,6 +179,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
             rep.changed += 1
         rep.placed += slug is not None
         rep.unplaced += slug is None
+    _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
     _meta(conn, "catalog_hash", h)
     if out:
         _reports(conn, cat, out)

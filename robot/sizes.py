@@ -38,3 +38,12 @@ def parse_size(name: str):
 def priced_per_piece(size, price_bani, cheap: int = 35) -> bool:
     """A pack of N pieces whose price is under 0,35 lei a piece (eggs): the shop gave the price of one piece."""
     return bool(size) and size[1] == "buc" and size[0] > 1 and price_bani is not None and price_bani / size[0] < cheap
+
+
+def portion_size(name: str):
+    """One portion of a multipack ("100x10g" -> (10, "g")); None when the name has no NxM size."""
+    m = re.search(r"(?<!cod )\b(\d+)\s*[x*]\s*" + _NUM + r"\s*(l|ml|kg|gr|g)\b", name.lower())
+    if not m or int(m.group(1)) < 2:
+        return None
+    f, unit = _FACTOR[m.group(3)]
+    return int(round(_num(m.group(2)) * f)), unit
