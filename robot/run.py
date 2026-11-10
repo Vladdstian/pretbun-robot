@@ -34,6 +34,7 @@ class Report:
     zone_rows: int = 0
     store_rows: int = 0
     files: dict = field(default_factory=dict)
+    odd: int = 0  # prices a shop gave under another product's official number (dropped)
 
 
 def exit_code(report: Report) -> int:
@@ -271,13 +272,18 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
     for o in all_obs:
         if chain_of.get(o.store_id) in failed:
             continue
+        if o.odd:  # the shop's own name describes another product: not this product's price
+            rep.odd += 1
+            continue
         k = (o.store_id, o.product_id)
         if k not in best or (o.price_bani is not None and (best[k].price_bani is None or o.price_bani < best[k].price_bani)):
             best[k] = o
     checked = {k for k in checked if chain_of.get(k[0]) not in failed}
     uniq = list(best.values())
     for o in uniq:
-        _upsert_product(conn, o.product_id, o.name, None, o.brand or None)
+        if o.cat_id is not None and not conn.execute("SELECT 1 FROM categories WHERE id = ?", (o.cat_id,)).fetchone():
+            db.write(conn, "categories", {"id": o.cat_id, "name": o.cat_name or str(o.cat_id), "parent_id": None})
+        _upsert_product(conn, o.product_id, o.name, o.cat_id, o.brand or None)
     days = [o.day for o in uniq if o.day is not None]
     rep.day = max(days) if days else run_day  # the date of the prices, not the machine clock
 

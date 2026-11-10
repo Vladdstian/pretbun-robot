@@ -9,6 +9,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import re
+import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date
@@ -50,6 +52,24 @@ class Obs:
     price_bani: Optional[int]  # None = not sold (explicit 0.00 in a complete answer)
     promo: int
     day: Optional[int]
+    cat_id: Optional[int] = None  # the official category ("FLOAREA SOARELUI"), the same for every shop
+    cat_name: str = ""
+    odd: bool = False  # the shop's own name describes another product: its price is not this product's
+
+
+def _words(text: str) -> list:
+    return [w for w in re.findall(r"[a-z]+", unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode())]
+
+
+def same_product(official: str, shop: str) -> bool:
+    """False only when the two names share no word: the same word of 3+ letters, or the same first 4 letters
+    ("Batoane" ~ "BATON", "Esenta" ~ "Esente"); some shops price their own product under another product's number."""
+    ours, theirs = [w for w in _words(official) if len(w) >= 3], [w for w in _words(shop) if len(w) >= 3]
+    if not ours or not theirs:
+        return True  # nothing to compare
+    near = lambda w, t: w == t or (len(w) >= 4 and len(t) >= 4 and w[:4] == t[:4])
+    glued = lambda words, other: any(len(w) >= 4 and w[:4] in "".join(other) for w in words)  # "KITKAT" ~ "KIT KAT"
+    return any(near(w, t) for w in ours for t in theirs) or glued(ours, _words(shop)) or glued(theirs, _words(official))
 
 
 @dataclass
@@ -116,9 +136,11 @@ def parse_stores_with_prices(xml: bytes):
         for p in s.iter(NS + "Product"):
             pid = int(_text(p, "Catprod/Id"))
             price = float(_text(p, "Price") or 0)
-            o = Obs(sid, pid, _text(p, "Catprod/Name") or _text(p, "Name"), _text(p, "Brand"),
+            official, cat = _text(p, "Catprod/Name"), _text(p, "Catprod/Prodcateg/Id")
+            o = Obs(sid, pid, official or _text(p, "Name"), _text(p, "Brand"),
                     to_bani(_text(p, "Price")) if price > 0 else None, 1 if _text(p, "Promo") else 0,
-                    _day(_text(p, "Pricedate")))
+                    _day(_text(p, "Pricedate")), int(cat) if cat.isdigit() else None, _text(p, "Catprod/Prodcateg/Name").strip(),
+                    not same_product(official, _text(p, "Name")))
             old = obs.get((sid, pid))
             # the same product twice in one store: the lowest price wins
             if old is None or (o.price_bani is not None and (old.price_bani is None or o.price_bani < old.price_bani)):
