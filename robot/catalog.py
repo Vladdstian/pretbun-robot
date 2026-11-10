@@ -22,7 +22,7 @@ from .items import size_text, tidy_name, place, title
 from .kinds import brand_starts, learn, middle_words
 from .names import attrs as read_attrs, normalize
 from .run import _brand_id, ro_today
-from .sizes import parse_size, portion_size, priced_per_piece
+from .sizes import by_weight, parse_size, portion_size, priced_per_piece
 
 FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalog")
 
@@ -157,6 +157,11 @@ def _check_categories(conn, cat, share: float = 0.10, at_least: int = 10) -> int
     return n
 
 
+def _la_kg(text: str, weight: bool) -> str:
+    """A counter product's title ends "· la kg" (priced per kg, you ask for as much as you want), not "· 1 kg"."""
+    return text[: -len(" · 1 kg")] + " · la kg" if weight and text.endswith(" · 1 kg") else text
+
+
 def _learned_kinds(conn, cat) -> int:
     """Products no hand-written item placed get a kind learned from the data (robot/kinds.py): "Șuncă de curcan"."""
     day = conn.execute("SELECT MAX(day) FROM zone_prices").fetchone()[0]
@@ -193,7 +198,7 @@ def _learned_kinds(conn, cat) -> int:
             db.write(conn, "item_info", {"item_id": ids[slug], "slug": slug, "shelf": (shelf.get(cid) or "").capitalize(),
                                          "size": None, "typical": None}, replace=True)
         row = conn.execute("SELECT name, brand_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
-        db.write(conn, "products", {"id": pid, "name": row[0], "title": name + (" · " + size_text((sq, su)) if sq else ""),
+        db.write(conn, "products", {"id": pid, "name": row[0], "title": _la_kg(name + (" · " + size_text((sq, su)) if sq else ""), (sq, su) == (1000, "g") and (by_weight(norm) or (shelf.get(cid) or "").upper() in BY_WEIGHT)),
                                     "brand_id": row[1], "item_id": ids[slug], "category_id": cid, "size_qty": sq,
                                     "size_unit": su, "barcode": row[2]}, replace=True)
         n += 1
@@ -241,7 +246,8 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
                 size = (1, "buc")
         brand = forced_brand or brands.find(n, brand_names.get(brand_id)) or find_learned(n, learned)
         shown = tuple(size) if size and size[0] else None  # the name shows the size the price is for
-        new = (forced_title or (title(by_slug.get(slug), at, shown, name) if slug else tidy_name(n, shown)),
+        weight = tuple(size or ()) == (1000, "g") and (by_weight(n) or (cat_names.get(cid) or "").upper() in BY_WEIGHT)
+        new = (forced_title or _la_kg(title(by_slug.get(slug), at, shown, name) if slug else tidy_name(n, shown), weight),
                _brand_id(conn, brand) if brand else brand_id, ids[slug] if slug else None) + tuple(size)
         if new != (old_title, brand_id, item_id, sq, su):
             db.write(conn, "products", {"id": pid, "name": name, "title": new[0], "brand_id": new[1], "item_id": new[2],

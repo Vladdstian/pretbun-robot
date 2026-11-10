@@ -58,3 +58,8 @@ def portion_size(name: str):
         return None
     f, unit = _FACTOR[m.group(3)]
     return int(round(_num(m.group(2)) * f)), unit
+
+
+def by_weight(name: str) -> bool:
+    """Sold at the counter, priced per kg: "... vrac", "... kg" (no number before it), "/kg", "la kg", "per kg"."""
+    return bool(re.search(r"(?:(?<![\d.,])\s+kg|\bvrac)\s*$|/\s*kg\b|\bla kg\b|\bper kg\b", name.lower()))
