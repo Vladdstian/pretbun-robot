@@ -54,6 +54,33 @@ def _items(conn, cat) -> dict:
     return ids
 
 
+# Official categories sold at the counter by weight: a product in one of them without a size is priced per kg (2026-11-10)
+BY_WEIGHT = {"PASARE", "PESTE", "PORC", "VITA", "GATITA", "MEZELURI - ALTELE", "CARNE PROCESATA - ALTELE", "PROASPETE - ALTELE"}
+
+
+def _sized_index(conn, cat) -> dict:
+    """First word -> [(normalized name, product id, size)] for every product whose own name gives a size."""
+    index = {}
+    for pid, name in conn.execute("SELECT id, name FROM products"):
+        n = normalize(name, cat.abbrev)
+        size = parse_size(n)
+        if size and n:
+            index.setdefault(n.split()[0], []).append((n, pid, size))
+    return index
+
+
+def _complete_size(n: str, pid: int, index: dict, medians: dict):
+    """A name cut short ("ketchup heinz top do") takes the size of the one full name it begins ("... top down 400ml"),
+    when that product costs nearly the same (within 15%); several sizes or no price: no answer."""
+    words, price = n.split(), medians.get(pid)
+    if not words or price is None:
+        return None
+    start = " ".join(words)
+    sizes = {size for m, q, size in index.get(words[0], []) if q != pid and m.startswith(start) and len(m) > len(start)
+             and medians.get(q) is not None and abs(medians[q] - price) <= 0.15 * price}
+    return sizes.pop() if len(sizes) == 1 else None
+
+
 def _median_prices(conn) -> dict:
     """Each product's middle price today across the zones."""
     from robot.history import current_zone_prices
@@ -72,13 +99,21 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
     brand_names = dict(conn.execute("SELECT id, name FROM brands"))
     rows = conn.execute("SELECT id, name, title, brand_id, item_id, category_id, size_qty, size_unit, barcode FROM products"
                         + ("" if everything else " WHERE title IS NULL")).fetchall()
-    medians = None
+    medians = index = None
+    cat_names = dict(conn.execute("SELECT id, name FROM categories"))
     for pid, name, old_title, brand_id, item_id, cid, sq, su, barcode in rows:
         n = normalize(name, cat.abbrev)
         at = read_attrs(n)
         slug, _ = place(pid, n, at, cat)
         _, forced_title, forced_brand = cat.overrides.get(pid, (None, None, None))
         size = parse_size(n) or (sq, su)
+        if not size or not size[0]:
+            medians = medians if medians is not None else _median_prices(conn)
+            index = index if index is not None else _sized_index(conn, cat)
+            if (cat_names.get(cid) or "").upper() in BY_WEIGHT:
+                size = (1000, "g")
+            else:
+                size = _complete_size(n, pid, index, medians) or size
         if slug and slug.startswith("oua"):  # eggs priced per egg ("Oua L*10" at 0,62 lei): the pack is one egg
             medians = medians if medians is not None else _median_prices(conn)
             if priced_per_piece(size, medians.get(pid)):
