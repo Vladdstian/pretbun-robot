@@ -37,7 +37,8 @@ def for_review(conn, rules: dict = None) -> dict:
     for pid, bani in price.items():
         sq, su, item, attrs = rows.get(pid, (None, None, None, None))
         if not sq:
-            if rules.get("hide_no_size", True):
+            # not-food (toilet paper, shampoo) is bought per pack, not per kg: it stays visible without a size (audit 2026-11-10)
+            if rules.get("hide_no_size", True) and '"nf"' not in (attrs or ""):
                 out[pid] = "fără mărime: nu se poate compara la kg sau litru"
         elif item is not None:
             kinds[(item, attrs, su)].append((bani * 1000 / sq if su in ("g", "ml") else bani / sq, pid))

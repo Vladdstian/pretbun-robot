@@ -40,7 +40,9 @@ PRETTY = {"sunca": "șuncă", "branza": "brânză", "paine": "pâine", "piine": 
           "bautura": "băutură", "blonda": "blondă", "bruna": "brună", "rosu": "roșu", "topita": "topită", "prajita": "prăjită",
           "padure": "pădure", "fructata": "fructată", "macinat": "măcinat", "solutie": "soluție", "vaca": "vacă",
           "ochelari": "ochelari", "sapunul": "săpunul", "gris": "griș", "orez": "orez", "mamaliga": "mămăligă", "sare": "sare", "mici": "mici",
-          "umpluta": "umplută", "cremoasa": "cremoasă", "zacusca": "zacuscă", "napolitana": "napolitană", "ciorba": "ciorbă"}
+          "umpluta": "umplută", "cremoasa": "cremoasă", "zacusca": "zacuscă", "napolitana": "napolitană", "ciorba": "ciorbă",
+          "vin": "vin", "bere": "bere", "whisky": "whisky", "vodca": "vodcă", "tuica": "țuică", "palinca": "pălincă",
+          "lapte": "lapte", "unt": "unt", "oua": "ouă", "ulei": "ulei", "paste": "paste", "pizza": "pizza", "pateu": "pateu"}
 
 _DIGIT = re.compile(r"\d")
 
