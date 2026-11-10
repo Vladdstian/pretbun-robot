@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 # words that say how it is packed or sold, never what it is
 FILLER = set("""feliat feliata feliate vrac kg gastro ambalat ambalata atm vid punga caserola tava bax pet doza sticla
 cutie borcan buc bucata bucati set pachet promo oferta nou noua extra premium clasic clasica traditional traditionala
-superior superioara fa cu ia cu/ia aprox pret sgr pv dz act bio eco organic ecologic ecologica""".split())
+superior superioara fa cu ia cu/ia aprox pret sgr pv dz act bio eco organic ecologic ecologica uht""".split())
 JOIN = {"de", "din", "cu", "si", "in", "la", "pentru", "fara"}
 # common words, written with their diacritics for the kind's name
 PRETTY = {"sunca": "șuncă", "branza": "brânză", "paine": "pâine", "piine": "pâine", "carnati": "cârnați", "muschi": "mușchi",

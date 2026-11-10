@@ -98,5 +98,5 @@ def title(item, attrs: dict, size, shop_name: str) -> str:
         return text[:1].upper() + text[1:]
     t = item.title.replace("{fat}", _num(attrs["fat"]) + "%" if "fat" in attrs else "(fără procent pe etichetă)")
     t = t.replace("{egg}", attrs.get("egg", "")).replace("{flour}", str(attrs.get("flour", "")))
-    t = " ".join(t.split())
+    t = " ".join(t.split())  # UHT, fără lactoză etc. are properties (attrs), not name words (2026-11-10)
     return t + (" · " + size_text(size) if size else "")

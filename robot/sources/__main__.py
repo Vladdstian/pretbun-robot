@@ -39,8 +39,15 @@ def main(argv=None, sources: dict = None, web=None) -> int:
     web = web or Polite()
     only = {x for x in a.only.split(",") if x}
     chosen = {k: v for k, v in sources.items() if not only or k in only}
+    import time
+    minutes = float(os.environ.get("ROBOT_DEADLINE_MIN", "240") or 240)  # a slow source (Glovo) must not eat the day
+    deadline = time.monotonic() + minutes * 60
     summary, failed = {}, 0
     for name, fn in chosen.items():
+        if time.monotonic() > deadline:
+            summary[name] = {"ok": False, "note": "timp epuizat (%.0f min)" % minutes}
+            failed += 1
+            continue
         try:
             r = fn(conn, web, today)
         except Exception as e:  # report it and go on with the next source

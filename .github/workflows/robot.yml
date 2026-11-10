@@ -212,6 +212,7 @@ jobs:
           for f in daily/*/*.json.gz; do wrangler r2 object put "pretbun/$f" --file "$f" --remote; done
           [ -f daily/admin/status.json ] && wrangler r2 object put pretbun/daily/admin/status.json --file daily/admin/status.json --remote
           [ -f daily/admin/review.json ] && wrangler r2 object put pretbun/daily/admin/review.json --file daily/admin/review.json --remote  # products left out for review
+          [ -f daily/admin/quality.json ] && wrangler r2 object put pretbun/daily/admin/quality.json --file daily/admin/quality.json --remote  # data-quality score
           if [ -d raw ]; then tar czf raw.tar.gz raw && wrangler r2 object put pretbun/raw/last.tar.gz --file raw.tar.gz --remote; fi
           for f in reports/* app/*; do wrangler r2 object put "pretbun/$f" --file "$f" --remote; done  # reports; app files on Sundays
 

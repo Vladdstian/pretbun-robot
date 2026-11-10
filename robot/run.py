@@ -175,7 +175,15 @@ def _fail(report: Report, key: str, err: Exception, step: str = "") -> None:
         report.chains_failed.append(key)
 
 
-def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categories=None, day=None) -> Report:
+def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categories=None, day=None,
+        minutes: float = None) -> Report:
+    """`minutes` (or env ROBOT_DEADLINE_MIN, default 240): a soft cap. Past it, no NEW chain is started; what was
+    collected still becomes today's files, so a slow source degrades the run instead of GitHub killing it at 6 h."""
+    import time as _time
+    if minutes is None:
+        minutes = float(os.environ.get("ROBOT_DEADLINE_MIN", "240") or 240)
+    deadline = _time.monotonic() + minutes * 60
+    overtime = lambda: _time.monotonic() > deadline
     rep = Report()
     nets = client.networks()
     keys = list(nets)
@@ -191,6 +199,9 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
             if conn.execute("SELECT name, parent_id FROM categories WHERE id = ?", (cid,)).fetchone() != (name, parent):
                 db.write(conn, "categories", {"id": cid, "name": name, "parent_id": parent}, replace=True)
         for key in keys:
+            if overtime():
+                _fail(rep, "catalog:%s" % key, TimeoutError("timp epuizat (%.0f min)" % minutes), "catalog")
+                continue
             try:
                 products = client.chain_catalog(key, sorted(categories) if categories else None)
             except Exception as e:  # keeps last week's list; today's prices still count
@@ -230,6 +241,9 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
         "SELECT product_id FROM chain_products WHERE chain_key = ? ORDER BY product_id", (key,))] for key in keys}
     all_obs, checked = [], set()
     for key in keys:
+        if overtime():  # the chains already collected still make today's files
+            _fail(rep, key, TimeoutError("timp epuizat (%.0f min)" % minutes), "prices")
+            continue
         # each chain only about its own products; the whole catalog only for a chain whose list is unknown
         wanted = list(dict.fromkeys(tracked + (sells[key] or catalog)[run_day % ROTATION_DAYS::ROTATION_DAYS]))
         ok = True

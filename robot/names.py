@@ -88,6 +88,15 @@ def attrs(norm: str) -> dict:
         m = re.search(r"\bcod\s*([0-3])\b", norm)
         if m:
             out["code"] = int(m.group(1))
+    if "uht" in words:
+        out["uht"] = 1  # long-life milk: kept in the name, "lapte uht" finds it (2026-11-10)
+    # what a buyer chooses by: in the name and a kind of its own, never mixed with the plain product (2026-11-10)
+    if re.search(r"\b(?:fara|fr|fz) lactoza\b|\blactose free\b|\bzero lactoza\b", norm):
+        out["lf"] = 1
+    if re.search(r"\b(?:fara|fr) zahar\b|\bzero zahar\b|\bsugar free\b", norm):
+        out["fz"] = 1
+    if re.search(r"\b(?:fara|fr) gluten\b|\bgluten free\b", norm):
+        out["fg"] = 1
     if NOT_FOOD.search(norm + " "):
         out["nf"] = 1  # not food: shown only when the search asks for it
     if GIFT.search(norm):
