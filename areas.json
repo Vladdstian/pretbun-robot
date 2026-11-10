@@ -1,0 +1,14 @@
+[
+ {
+  "name": "brasov",
+  "lat": 45.6427,
+  "lon": 25.5887,
+  "radius_m": 5000
+ },
+ {
+  "name": "bucuresti",
+  "lat": 44.4268,
+  "lon": 26.1025,
+  "radius_m": 5000
+ }
+]

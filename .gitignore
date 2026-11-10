@@ -1,0 +1,6 @@
+__pycache__/
+*.sqlite
+daily/
+raw/
+reports/
+*.gz

@@ -1,0 +1,103 @@
+# Brands: display name, aliases as they appear in normalized names (| separated), shop label (chain key) for own brands
+brand	aliases	label
+# dairy
+Campina	campina	
+Covalact	covalact|cvl	
+De la Teaca	de la teaca	
+Dorna	dorna	
+LaDorna	ladorna	
+Fulga	^fulga	
+Napolact	napolact	
+Zuzu	zuzu	
+Friss	friss|cvl friss	
+Prodlacta	prodlacta	
+Diami	diami	
+Ferma	^ferma	
+Albalact	albalact	
+Big Panda	big panda	
+Bucovina	bucovina	
+Cris-Tim	cris tim	
+Munte Lact	munte lact	
+Milram	milram	
+Olympus	olympus	
+Delaco	delaco	
+Artesana	artesana	
+Hochland	hochland	
+# eggs
+Ferma Diamant	ferma diamant	
+Albert	albert	
+Toneli	toneli	
+Le Naturelle	le naturelle	
+O&O	o o	
+Bravito	bravito	
+Assani	assani	
+# oil
+Bunica	bunica	
+Untdelemn de la Bunica	untdelemn de la bunica	
+Floriol	floriol	
+Spornic	spornic	
+Apus	apus	
+Ardealul	ardealul	
+Argus	argus	
+Delicia	delicia	
+Floris	floris	
+Helios	helios	
+Sora Soarelui	sora soarelui	
+Calus	calus	
+Floare de Aur	floare de aur	
+Furnicuta	furnicuta	
+Atlas	atlas	
+Kernel	kernel	
+Kook	kook	
+Unisol	unisol	
+Costa d'Oro	costa d oro	
+# sugar
+Atifco	atifco	
+Bod	^bod	
+Bunetto	bunetto	
+Izzi	izzi	
+Moș Zaharia	mos zaharia	
+Diamant	diamant	
+Polski Cukier	polski cukier	
+Viro	viro	
+Coronita	coronita	
+Delmario	delmario	
+Derby	derby	
+Luna	^luna	
+Margaritar	margaritar	
+# flour, rice, pasta
+Băneasa	baneasa	
+Boromir	boromir	
+Dobrogea	dobrogea	
+Pambac	pambac|grania pambac	
+Hanul Boieresc	hanul boieresc	
+Delizia	delizia	
+Enache Morarit	enache morarit	
+Panzani	panzani	
+Unopan	unopan	
+Titan	titan	
+Arpis	arpis	
+Oltina	oltina	
+Caputo	caputo	
+Barilla	barilla	
+Schär	schar	
+Lido	lido	
+Riso Scotti	riso scotti	
+Krina	krina	
+Deroni	deroni	
+Ben's Original	bens|ben s	
+Jacobs	jacobs	
+# shops' own brands (label = chain key)
+Mega Image	mega dll|mega image|dll	5940475870003
+Boni	boni|boni de tot	PENNY
+Auchan	auchan	AUCHAN
+Carrefour	carrefour|crf	5940475006709
+Penny	penny	PENNY
+Profi	^profi	PROFI
+Proxi	^proxi	
+K-Classic	k classic|klc	KAUFLAND
+K-Bio	k bio	KAUFLAND
+Pilos	pilos	4055329000008
+Milbona	milbona	4055329000008
+Transgourmet	transgourmet	SELGROS
+Lurpak	lurpak|lur	

@@ -1,0 +1,245 @@
+# The daily price robot: Monitorul Prețurilor -> database (master copy kept in R2) -> daily files in R2 + changes in D1.
+# Runs in the public repo pretbun-robot (unlimited free minutes); copied there by tools/publish_robot.sh. A failed run makes GitHub email you.
+name: robot
+
+on:
+  schedule:  # three tries a day; once one works, the later ones skip
+    - cron: "30 3 * * *"  # 05:30 in Romania in winter, 06:30 in summer; prices are dated 04:00
+    - cron: "0 12 * * *"  # 14:00: only if today's run hasn't worked yet
+    - cron: "0 17 * * *"  # 19:00: the same
+  workflow_dispatch:
+    inputs:
+      weekly:
+        description: "Also refresh stores and the catalog (Sundays do this anyway)"
+        type: boolean
+        default: false
+      first_run:
+        description: "First run only: start with an empty database (R2 has none yet)"
+        type: boolean
+        default: false
+      off_download:
+        description: "Download Open Food Facts now (~1 hour; otherwise on the first Sunday of the month)"
+        type: boolean
+        default: false
+      only:
+        description: "Run only these parts (admin page): magazine,saptamanal,glovo,freshful,drmax,tei,bonuri,etichete; empty = the usual run"
+        type: string
+        default: ""
+
+concurrency:
+  group: robot  # two runs at once would overwrite each other's database
+  cancel-in-progress: false
+
+jobs:
+  today:  # a scheduled try is skipped when today's run already worked; runs started by hand always go
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    permissions:
+      actions: read
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          done=0
+          if [ "${{ github.event_name }}" = schedule ]; then
+            done=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/robot.yml/runs" -f created=">=$(date -u +%Y-%m-%d)" -f status=success --jq '.total_count')
+          fi
+          echo "Successful runs today: $done"
+          echo "go=$([ "$done" = 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  robot:
+    needs: today
+    if: needs.today.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read  # this month's billable minutes, for the free-limits check
+      issues: write  # the email alert is a GitHub issue
+    env:
+      ONLY: ${{ inputs.only }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --global wrangler@4
+
+      - name: Get the database from R2
+        id: get
+        run: |
+          if wrangler r2 object get pretbun/db/pretbun.sqlite --file pretbun.sqlite --remote && [ -s pretbun.sqlite ]; then
+            echo "Got the database ($(du -h pretbun.sqlite | cut -f1))"
+          elif [ "${{ inputs.first_run }}" = "true" ]; then
+            echo "First run: starting with an empty database"
+            rm -f pretbun.sqlite
+          else
+            # never start from empty by accident: saving that would overwrite the only full copy of the history
+            echo "::error::Could not get the database from R2. For the very first run, start the workflow by hand with 'first run' ticked."
+            exit 1
+          fi
+
+      - name: Check the free limits (warn at 75%, stop at 90%)
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shortcut: the 2,000 free minutes are per GitHub account; this counts this repository's runs only.
+          # GitHub's "billable" timing now reads 0 (seen 2026-11-09); each run's duration, rounded up to a minute, is safe
+          # jobs on the Mac (self-hosted) cost no GitHub minutes, so only jobs on GitHub's machines count, each rounded up to a minute
+          month=$(date -u +%Y-%m-01); minutes=0
+          for id in $(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/runs" -f created=">=$month" -f per_page=100 --paginate --jq '.workflow_runs[].id'); do
+            m=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" --jq '[.jobs[] | select(.completed_at != null and .started_at != null and ((.labels | index("self-hosted")) | not))
+              | (((.completed_at | fromdate) - (.started_at | fromdate) + 59) / 60 | floor)] | add // 0')
+            minutes=$((minutes + m))
+          done
+          [ "${{ github.event.repository.private }}" = "false" ] && minutes=0  # a public repo's minutes are free and unlimited
+          r2=$(wrangler r2 bucket info pretbun 2>/dev/null | sed -n 's/^bucket_size: *//p')
+          wrangler d1 info pretbun --json > d1.json 2>/dev/null || rm -f d1.json
+          set +e
+          python3 -m robot.guard --r2-size "${r2:-unknown}" $([ -s d1.json ] && echo --d1-json d1.json) \
+            --gh-minutes "$minutes" --report guard.md
+          code=$?
+          set -e
+          [ -f guard.md ] || echo "The free-limits check itself failed; see this run's log." > guard.md
+          case $code in 0) level=ok ;; 20) level=stop ;; *) level=warn ;; esac
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+
+      - name: Which parts run (admin page "Robotul"; empty = the usual daily run)
+        run: |
+          echo 'want() { [ -z "$ONLY" ] || [[ ",$ONLY," == *",$1,"* ]]; }' > "$RUNNER_TEMP/want.sh"
+          echo "Parts: ${ONLY:-the usual run}"
+
+      - name: Online and app prices (Glovo and Wolt daily; Dr. Max and Farmacia Tei archives and Freshful on Sundays)
+        id: sources
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true  # online and app prices are extra: a failure must not stop today's official prices
+        run: |
+          list="glovo"
+          if [ "$(date -u +%u)" = 7 ] || [ "${{ inputs.weekly }}" = "true" ]; then list="drmax,tei,freshful,glovo"; fi
+          if [ -n "$ONLY" ]; then list=$(python3 -c "import sys; print(','.join(x for x in sys.argv[1].split(',') if x in ('drmax','tei','freshful','glovo')))" "$ONLY"); fi  # Wolt paused 2026-11-10: its terms (§12.6 vii) forbid bots
+          # sources the admin paused in the app (Administrare → Date): control/paused.json in R2
+          paused=$(wrangler r2 object get pretbun/control/paused.json --remote --pipe 2>/dev/null | python3 -c "import json,sys; print(','.join(json.load(sys.stdin)['sources']))" 2>/dev/null || true)
+          list=$(python3 -c "import sys; p=set(sys.argv[2].split(',')); print(','.join(x for x in sys.argv[1].split(',') if x not in p))" "$list" "$paused")
+          echo "Sources: ${list:-none} (paused: ${paused:-none})"
+          [ -n "$list" ] || exit 0
+          python3 -m robot.sources --db pretbun.sqlite --out daily --areas areas.json --apps catalog/apps.tsv --only "$list"
+
+      - name: Forget Wolt in D1 (its terms forbid bots; deletes nothing after the first run)
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true
+        run: wrangler d1 execute pretbun --remote --command "DELETE FROM place_prices WHERE place_id IN (SELECT id FROM places WHERE app = 'wolt'); DELETE FROM places WHERE app = 'wolt'"
+
+      - name: Receipt prices from the app (accepted receipts in D1, newer than the last import)
+        id: receipts
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true
+        run: |
+          . "$RUNNER_TEMP/want.sh"; want bonuri || exit 0
+          since=$(python3 -m robot.receipts since --db pretbun.sqlite)
+          wrangler d1 execute pretbun --remote --json --command "SELECT store_id, product_id, day, price, at FROM receipt_prices WHERE at > $since ORDER BY at LIMIT 20000" > receipts.json \
+            || { echo "No receipt table yet (the app is not online)"; exit 0; }
+          python3 -m robot.receipts import --db pretbun.sqlite --json receipts.json
+
+      - name: Run the robot
+        id: robot
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true  # a failed chain must not stop saving the others; the last step marks the run failed
+        run: |
+          . "$RUNNER_TEMP/want.sh"; want magazine || want saptamanal || exit 0
+          weekly=""
+          if [ "$(date -u +%u)" = 7 ] || [ "${{ inputs.weekly }}" = "true" ]; then weekly="--weekly"; fi
+          if [ -n "$ONLY" ]; then weekly=""; want saptamanal && weekly="--weekly"; fi
+          cats="${{ vars.CATEGORIES }}"  # repo variable: comma-separated category ids; empty = the whole catalog
+          python3 -m robot.run --db pretbun.sqlite --areas areas.json --out daily --raw raw $weekly ${cats:+--categories "$cats"}
+
+      - name: Place products in the catalog (plain names, items, brands)
+        id: catalog
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true  # a catalog problem must not stop saving today's prices; the last step marks the run failed
+        run: |
+          . "$RUNNER_TEMP/want.sh"; want magazine || want saptamanal || exit 0
+          python3 -m robot.catalog --db pretbun.sqlite --out reports
+
+      - name: Open Food Facts labels (Sundays; a fresh download on the first Sunday of the month, or any day until the first one worked)
+        id: off
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true  # labels are a bonus: a failure must not stop saving today's prices
+        run: |
+          . "$RUNNER_TEMP/want.sh"; want etichete || exit 0
+          have=$(sqlite3 pretbun.sqlite "SELECT value FROM meta WHERE key = 'off_downloaded'")
+          if [ -n "$ONLY" ]; then have=""; fi  # chosen by hand: a fresh download
+          if [ -n "$have" ] && [ "$(date -u +%u)" != 7 ] && [ "${{ inputs.weekly }}" != "true" ] && [ "${{ inputs.off_download }}" != "true" ]; then exit 0; fi
+          if [ -z "$have" ] || [ "$(date -u +%d)" -le 7 ] || [ "${{ inputs.off_download }}" = "true" ]; then
+            python3 -m robot.off fetch --out off.jsonl.gz  # the bulk export, about 1.5 GB, streamed
+            wrangler r2 object put pretbun/off/romania.jsonl.gz --file off.jsonl.gz --remote
+            sqlite3 pretbun.sqlite "INSERT OR REPLACE INTO meta (key, value) VALUES ('off_downloaded', date('now'))"
+          else
+            wrangler r2 object get pretbun/off/romania.jsonl.gz --file off.jsonl.gz --remote || { echo "No Open Food Facts file yet"; exit 0; }
+          fi
+          python3 -m robot.off match --db pretbun.sqlite --off off.jsonl.gz
+
+      - name: The app's weekly files (Sundays) - items with typical values, product labels
+        id: appfiles
+        if: steps.guard.outputs.level != 'stop'
+        continue-on-error: true
+        run: |
+          . "$RUNNER_TEMP/want.sh"
+          if [ -n "$ONLY" ]; then want saptamanal || want etichete || exit 0
+          elif [ "$(date -u +%u)" != 7 ] && [ "${{ inputs.weekly }}" != "true" ] && [ "${{ inputs.off_download }}" != "true" ]; then exit 0; fi
+          python3 -m robot.catalog --db pretbun.sqlite --out reports --files daily/catalog  # uploaded with the daily files; the app gets them from /api/catalog
+
+      - name: The admin page's status (freshness per source, database numbers)
+        if: always()
+        run: python3 -m robot.status --db pretbun.sqlite --out daily || true
+
+      - name: Save the database, daily files and raw answers to R2
+        if: steps.guard.outputs.level != 'stop'
+        run: |
+          python3 -c "import sqlite3,sys; sys.exit(sqlite3.connect('pretbun.sqlite').execute('PRAGMA quick_check').fetchone()[0] != 'ok')" \
+            || { echo "::error::The database failed its check; not saving it."; exit 1; }
+          # shortcut: wrangler uploads at most 300 MiB per object; switch to an S3 multipart upload when the database nears that.
+          wrangler r2 object put pretbun/db/pretbun.sqlite --file pretbun.sqlite --remote
+          shopt -s nullglob
+          for f in daily/*/*.json.gz; do wrangler r2 object put "pretbun/$f" --file "$f" --remote; done
+          [ -f daily/admin/status.json ] && wrangler r2 object put pretbun/daily/admin/status.json --file daily/admin/status.json --remote
+          if [ -d raw ]; then tar czf raw.tar.gz raw && wrangler r2 object put pretbun/raw/last.tar.gz --file raw.tar.gz --remote; fi
+          for f in reports/* app/*; do wrangler r2 object put "pretbun/$f" --file "$f" --remote; done  # reports; app files on Sundays
+
+      - name: Send the changes to D1 (70,000 a day for the robot; 30,000 stay for people; the rest wait for the next days)
+        if: steps.guard.outputs.level != 'stop'
+        run: |
+          wrangler d1 info pretbun --json > d1-now.json 2>/dev/null || rm -f d1-now.json  # what D1 already wrote today, people included
+          upto=$(python3 -m robot.sync_d1 export --db pretbun.sqlite --out today.sql --d1-info d1-now.json)
+          if [ "$upto" -gt 0 ]; then
+            wrangler d1 execute pretbun --remote --file today.sql
+            python3 -m robot.sync_d1 done --db pretbun.sqlite --upto "$upto"
+            wrangler r2 object put pretbun/db/pretbun.sqlite --file pretbun.sqlite --remote
+          fi
+
+      - name: Email an alert (a GitHub issue) when near a free limit
+        if: ${{ !cancelled() && (steps.guard.outputs.level == 'warn' || steps.guard.outputs.level == 'stop') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          title="Free limits: action needed"
+          printf '%s\n\n@%s\n' "$(cat guard.md)" "${{ github.repository_owner }}" > alert.md
+          n=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then gh issue comment "$n" --body-file alert.md; else gh issue create --title "$title" --body-file alert.md; fi
+
+      - name: Mark the run failed (a chain failed, the catalog failed, or a free limit stopped it)
+        if: ${{ !cancelled() && (steps.robot.outcome == 'failure' || steps.catalog.outcome == 'failure' || steps.off.outcome == 'failure' || steps.sources.outcome == 'failure' || steps.guard.outputs.level == 'stop') }}
+        run: |
+          [ "${{ steps.guard.outputs.level }}" = stop ] && echo "::error::Stopped at 90% of a free limit; see the issue."
+          [ "${{ steps.robot.outcome }}" = failure ] && echo "::error::The robot reported a failed chain; see its step."
+          [ "${{ steps.catalog.outcome }}" = failure ] && echo "::error::The catalog build failed; see its step."
+          [ "${{ steps.off.outcome }}" = failure ] && echo "::error::Open Food Facts failed (download or matching); see its step."
+          [ "${{ steps.sources.outcome }}" = failure ] && echo "::error::An online price source failed; see its step."
+          exit 1

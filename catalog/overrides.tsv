@@ -1,0 +1,2 @@
+# Corrections that always win: slug '-' = no item, empty = rules decide; title and brand optional
+product_id	slug	title	brand	note
