@@ -322,9 +322,11 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
     # order) put every catalog fix in the app a day late (2026-11-10: chips still under Unt)
     from .catalog import build as build_catalog
     from .catalogdata import load as load_catalog
-    build_catalog(conn, load_catalog("catalog"), rep.day)
+    from .settings import load as load_rules
+    rules = load_rules(os.path.join(out_dir, "admin", "settings.json"))  # set on the admin page (README D6)
+    build_catalog(conn, load_catalog("catalog"), rep.day, rules=rules)
     # 8. one daily file per area (latest + dated copy); products the cleaning rules can't fix are left out and listed
-    hide = for_review(conn)
+    hide = for_review(conn, rules)
     write_review(conn, hide, out_dir)
     for a in areas:
         data = build_daily(conn, a, rep.day, hide)

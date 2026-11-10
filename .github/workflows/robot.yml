@@ -157,6 +157,8 @@ jobs:
           if [ "$(date -u +%u)" = 7 ] || [ "${{ inputs.weekly }}" = "true" ]; then weekly="--weekly"; fi
           if [ -n "$ONLY" ]; then weekly=""; want saptamanal && weekly="--weekly"; fi
           cats="${{ vars.CATEGORIES }}"  # repo variable: comma-separated category ids; empty = the whole catalog
+          mkdir -p daily/admin  # the cleaning rules set on the admin page (README D6); missing = built-in values
+          wrangler r2 object get pretbun/daily/admin/settings.json --file daily/admin/settings.json --remote || rm -f daily/admin/settings.json
           python3 -m robot.run --db pretbun.sqlite --areas areas.json --out daily --raw raw $weekly ${cats:+--categories "$cats"}
 
       - name: Place products in the catalog (plain names, items, brands)

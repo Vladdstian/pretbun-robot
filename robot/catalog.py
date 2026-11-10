@@ -171,7 +171,7 @@ def _la_kg(text: str, weight: bool) -> str:
     return text[: -len(" · 1 kg")] + " · la kg" if weight and text.endswith(" · 1 kg") else text
 
 
-def _learned_kinds(conn, cat) -> int:
+def _learned_kinds(conn, cat, rules: dict = None) -> int:
     """Products no hand-written item placed get a kind learned from the data (robot/kinds.py): "Șuncă de curcan"."""
     day = conn.execute("SELECT MAX(day) FROM zone_prices").fetchone()[0]
     if day is None:
@@ -189,7 +189,8 @@ def _learned_kinds(conn, cat) -> int:
             if pid in chains]
     if not rows:
         return 0
-    got = learn([r[:5] for r in rows], leading=brand_starts(normalize(b) for b in brands.values()),
+    rules = rules or {}
+    got = learn([r[:5] for r in rows], at_least=rules.get("kind_products", 5), min_sources=rules.get("kind_chains", 2), leading=brand_starts(normalize(b) for b in brands.values()),
                 middle=middle_words(normalize(n, cat.abbrev) for (n,) in conn.execute("SELECT name FROM products")))
     ids = dict(conn.execute("SELECT slug, item_id FROM item_info"))
     nxt = max([0] + list(ids.values()) + [conn.execute("SELECT COALESCE(MAX(id), 0) FROM items").fetchone()[0]]) + 1
@@ -226,7 +227,7 @@ def _median_prices(conn) -> dict:
     return {pid: sorted(v)[len(v) // 2] for pid, v in by.items()}
 
 
-def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, out: str = None) -> Report:
+def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, out: str = None, rules: dict = None) -> Report:
     rep = Report()
     h = catalog_hash(folder)
     everything = everything or h != _meta(conn, "catalog_hash")
@@ -277,7 +278,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
         rep.placed += slug is not None
         rep.unplaced += slug is None
     _check_categories(conn, cat)
-    _learned_kinds(conn, cat)
+    _learned_kinds(conn, cat, rules)
     _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
     _meta(conn, "catalog_hash", h)
     if out:
@@ -335,7 +336,8 @@ def main(argv=None) -> int:
     ap.add_argument("--files", help="also write the app's items.json.gz and facts.json.gz into this folder")
     a = ap.parse_args(argv)
     conn, cat = db.connect(a.db), load(FOLDER)
-    rep = build(conn, cat, ro_today(), a.everything, FOLDER, a.out)
+    from .settings import load as load_rules
+    rep = build(conn, cat, ro_today(), a.everything, FOLDER, a.out, load_rules())
     if a.files:
         app_files(conn, cat, a.files)
     print(json.dumps(asdict(rep)))

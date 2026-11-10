@@ -26,7 +26,10 @@ def _medians(conn) -> dict:
     return {pid: sorted(v)[len(v) // 2] for pid, v in by.items()}
 
 
-def for_review(conn) -> dict:
+def for_review(conn, rules: dict = None) -> dict:
+    """rules: robot/settings.py (factor, hide_no_size, show = product ids the admin chose to show anyway)."""
+    rules = rules or {}
+    cheap, show = rules.get("factor", CHEAP), set(rules.get("show", ()))
     price = _medians(conn)
     rows = {pid: (sq, su, item, attrs) for pid, sq, su, item, attrs in conn.execute(
         "SELECT p.id, p.size_qty, p.size_unit, p.item_id, i.attrs FROM products p LEFT JOIN product_info i ON i.product_id = p.id")}
@@ -34,7 +37,8 @@ def for_review(conn) -> dict:
     for pid, bani in price.items():
         sq, su, item, attrs = rows.get(pid, (None, None, None, None))
         if not sq:
-            out[pid] = "fără mărime: nu se poate compara la kg sau litru"
+            if rules.get("hide_no_size", True):
+                out[pid] = "fără mărime: nu se poate compara la kg sau litru"
         elif item is not None:
             kinds[(item, attrs, su)].append((bani * 1000 / sq if su in ("g", "ml") else bani / sq, pid))
     names = dict(conn.execute("SELECT id, name FROM products"))
@@ -43,10 +47,10 @@ def for_review(conn) -> dict:
             continue
         mid = sorted(v for v, _ in group)[len(group) // 2]
         for v, pid in group:
-            if v * CHEAP < mid:
+            if v * cheap < mid:
                 out[pid] = "preț ciudat: %.2f lei pe unitate față de %.2f obișnuit" % (v / 100, mid / 100)
                 continue
-            if v > mid * CHEAP:  # possible now that kinds are checked against the official category (2026-11-10)
+            if v > mid * cheap:  # possible now that kinds are checked against the official category (2026-11-10)
                 out[pid] = "preț ciudat, prea scump: %.2f lei pe unitate față de %.2f obișnuit" % (v / 100, mid / 100)
                 continue
             # a multipack whose price looks like one piece's ("4x0.33nrt" at 6,19 lei): the pack and the single piece are
@@ -57,7 +61,7 @@ def for_review(conn) -> dict:
                 one = v * sq / part[0]
                 if abs(log(one / mid)) < abs(log(v / mid)):
                     out[pid] = "preț de verificat: pare prețul unei bucăți, nu al pachetului"
-    return out
+    return {pid: why for pid, why in out.items() if pid not in show}
 
 
 def write(conn, review: dict, out_dir: str) -> str:
