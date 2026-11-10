@@ -15,8 +15,7 @@ from robot.names import normalize
 from robot.sizes import portion_size
 
 CHEAP = 10  # under a tenth of its kind's middle price per kg: a portion priced as the box (0,77 lei for 1 kg of butter).
-# shortcut: only too-cheap prices go to review while items still hold wrong products (rice next to sushi pushes the
-# middle up); check items against the official category, then also flag far too expensive ones.
+# Too expensive by the same factor goes to review too, since kinds are checked against the official category.
 
 
 def _medians(conn) -> dict:
@@ -46,6 +45,9 @@ def for_review(conn) -> dict:
         for v, pid in group:
             if v * CHEAP < mid:
                 out[pid] = "preț ciudat: %.2f lei pe unitate față de %.2f obișnuit" % (v / 100, mid / 100)
+                continue
+            if v > mid * CHEAP:  # possible now that kinds are checked against the official category (2026-11-10)
+                out[pid] = "preț ciudat, prea scump: %.2f lei pe unitate față de %.2f obișnuit" % (v / 100, mid / 100)
                 continue
             # a multipack whose price looks like one piece's ("4x0.33nrt" at 6,19 lei): the pack and the single piece are
             # different products, so it is neither resized nor shown (2026-11-10 "don't mix")
