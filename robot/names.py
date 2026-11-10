@@ -34,6 +34,7 @@ def _expand(words: list, abbrev: dict) -> list:
 def normalize(name: str, abbrev: dict = None) -> str:
     s = unicodedata.normalize("NFKD", (name or "").lower())
     s = "".join(c for c in s if not unicodedata.combining(c))       # ș->s, ț->t, ă/â->a, î->i, ö->o
+    s = re.sub(r"^\s*buc_", "", s)                                  # "Buc_Sunca…": a shop's code before the name
     s = re.sub(r"(?<=\d),(?=\d)", ".", s)                           # 1,5 -> 1.5
     s = re.sub(r"\b(\d) (\d)%", r"\1.\2%", s)                        # "3 5%" (missing comma) -> 3.5%
     s = re.sub(r"\d\s*\+\s*\(?\s*\d\s*-\s*\d+(?:\.\d+)?\s*%\s*\)?", " ", s)  # promo "1+(1-40%)", "1+1-50%"
@@ -73,6 +74,8 @@ def attrs(norm: str) -> dict:
         m = re.search(r"\bcod\s*([0-3])\b", norm)
         if m:
             out["code"] = int(m.group(1))
+    if {"bio", "eco", "organic", "ecologic", "ecologica", "ecologice"} & set(words):  # organic: the Bio filter (asked 2026-11-10)
+        out["bio"] = 1
     if "faina" in words:
         types = set(re.findall(r"\b(000|00|480|650|1250)\b", norm))
         if len(types) == 1:

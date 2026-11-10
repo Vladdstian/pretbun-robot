@@ -15,6 +15,13 @@ def _num(s: str) -> float:
 
 def parse_size(name: str):
     s = name.lower()
+    if re.search(r"\boua\b", s):  # eggs: "l" is the egg size; "oua 6l" = six size-L eggs, "10buc 2/l" = ten
+        if not re.search(r"buc|[x*]\s*\d", s):
+            m = re.search(r"\b(\d+)\s*l\b", s)
+            if m:
+                return int(m.group(1)), "buc"
+        s = re.sub(r"\b\d+\s*/?\s*l\b", " ", s)
+    s = re.sub(r"\b(\d+)\s*l\s+(?=\d+\s*(?:g|gr)\b)", "", s)  # baby food "7l 160g": 7 months, then the weight
     m = re.search(r"(?<!cod )\b(\d+)\s*[x*]\s*" + _NUM + r"\s*(l|ml|kg|gr|g|buc|bucati)\b", s)  # 6x0.5l, 10*10g, 6x30buc
     if m:
         f, unit = _FACTOR[m.group(3)]

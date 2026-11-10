@@ -90,7 +90,7 @@ Jacobs	jacobs
 # shops' own brands (label = chain key)
 Mega Image	mega dll|mega image|dll	5940475870003
 Boni	boni|boni de tot	PENNY
-Auchan	auchan	AUCHAN
+Auchan	auchan|^auc	AUCHAN
 Carrefour	carrefour|crf	5940475006709
 Penny	penny	PENNY
 Profi	^profi	PROFI
@@ -101,3 +101,42 @@ Pilos	pilos	4055329000008
 Milbona	milbona	4055329000008
 Transgourmet	transgourmet	SELGROS
 Lurpak	lurpak|lur	
+# store brands (asked 2026-11-10: "kaufland has K-Classic"); the label is the chain's source key
+San Fabio	san fabio	PENNY
+Milkeria	milkeria	PENNY
+Cafetime	cafetime	PENNY
+Chocoland	chocoland|choco la	PENNY
+Penny Ready	penny ready	PENNY
+Pouce	pouce	AUCHAN
+Actuel	actuel	AUCHAN
+Pikok	pikok	4055329000008
+Dulano	dulano	4055329000008
+Chef Select	chef select	4055329000008
+Solevita	solevita	4055329000008
+Snack Day	snack day	4055329000008
+Alesto	alesto	4055329000008
+Freshona	freshona	4055329000008
+Kania	kania	4055329000008
+Bellarom	bellarom	4055329000008
+Gelatelli	gelatelli	4055329000008
+Italiamo	italiamo	4055329000008
+Vitasia	vitasia	4055329000008
+Crownfield	crownfield	4055329000008
+Combino	combino	4055329000008
+Freeway	freeway	4055329000008
+Fin Carré	fin carre	4055329000008
+Deluxe	deluxe	4055329000008
+Cien	cien	4055329000008
+W5	w5	4055329000008
+Exquisit	exquisit	KAUFLAND
+K-Purland	k purland	KAUFLAND
+K-Favourites	k favourites	KAUFLAND
+K-Take it Veggie	k take it veggie	KAUFLAND
+Gusturi Românești	gusturi romanesti|^gr	5940475870003
+365	^365	5940475870003
+Delhaize	delhaize	5940475870003
+Carrefour Bio	crf bio|carrefour bio	5940475006709
+Simpl	simpl	5940475006709
+Cora	^cora	5948914999995
+Quality & Price	quality price	SELGROS
+Paysan Breton	paysan breton|^pb	

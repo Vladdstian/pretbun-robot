@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from collections import Counter
 
+import re
+import unicodedata
 import argparse
 import json
 import os
@@ -124,6 +126,36 @@ def _fix_portions(conn, cat, medians: dict) -> int:
     return fixed
 
 
+MIXED = re.compile(r"GATIT|SEMIPREPARAT|PATISERIE|PANIFICATIE|PAINE|SNACK|CIOCOLATA|COFETARIE|DESERT|DULCIURI|CONSERV|INGHETATA|"
+                   r"SOS|PESTE|FRUCTE DE MARE|ALUAT|CONGELAT|BEBELUSI|BAUTURI|BERE|APA |MASTI|PATE|MEZELURI|SALAT|BISCUIT|IAURT")
+_plain = lambda s: unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().upper()
+
+
+def _check_categories(conn, cat, share: float = 0.10, at_least: int = 10) -> int:
+    """An item keeps only products from the official categories that hold at least `share` of its products
+    (Unt: UNT and LACTATE; not SNACKS, PATISERIE, CIOCOLATA: chips and croissants "cu unt"). Others go unplaced."""
+    rows = conn.execute("SELECT id, name, item_id, category_id, size_qty, size_unit FROM products "
+                        "WHERE item_id IS NOT NULL AND category_id IS NOT NULL").fetchall()
+    names = dict(conn.execute("SELECT id, name FROM categories"))
+    # shops also misfile plain products (oil under ULEI, margarine under LACTATE): only a mixed food or a non-food goes
+    mixed = lambda cid: bool(MIXED.search(_plain(names.get(cid) or "")))
+    per = {}
+    for _, _, iid, cid, _, _ in rows:
+        per.setdefault(iid, Counter())[cid] += 1
+    n = 0
+    for pid, name, iid, cid, sq, su in rows:
+        c = per[iid]
+        total = sum(c.values())
+        if total < at_least or c[cid] >= share * total or not mixed(cid):
+            continue
+        row = conn.execute("SELECT brand_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
+        db.write(conn, "products", {"id": pid, "name": name, "title": tidy_name(normalize(name, cat.abbrev), (sq, su) if sq else None),
+                                    "brand_id": row[0], "item_id": None, "category_id": cid, "size_qty": sq, "size_unit": su,
+                                    "barcode": row[1]}, replace=True)
+        n += 1
+    return n
+
+
 def _median_prices(conn) -> dict:
     """Each product's middle price today across the zones."""
     from robot.history import current_zone_prices
@@ -180,6 +212,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
         rep.placed += slug is not None
         rep.unplaced += slug is None
     _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
+    _check_categories(conn, cat)
     _meta(conn, "catalog_hash", h)
     if out:
         _reports(conn, cat, out)

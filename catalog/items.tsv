@@ -6,8 +6,8 @@ slug	name	title	shelf	unit	size	all	none	when	rank
 lapte-15	Lapte 1,5%	Lapte {fat}	Lactate	l	1000	lapte|barista	batut kefir chefir sana ayran iaurt praf condensat ciocolat* cacao cafea frappe bautura vegetal* soia ovaz migdale cocos orez detergent capsule gel corp demachiant frisca smantana branza unt biscuit* napolitan* cereale budinca cioco* caramel* vanil* capsuni banane aroma* proteic* capra oaie bivolita	fat 1.2-1.9	10
 lapte-35	Lapte 3,5%	Lapte {fat}	Lactate	l	1000	lapte|barista	batut kefir chefir sana ayran iaurt praf condensat ciocolat* cacao cafea frappe bautura vegetal* soia ovaz migdale cocos orez detergent capsule gel corp demachiant frisca smantana branza unt biscuit* napolitan* cereale budinca cioco* caramel* vanil* capsuni banane aroma* proteic* capra oaie bivolita	fat 2.5-4.5	10
 lapte-degresat	Lapte degresat	Lapte {fat}	Lactate	l	1000	lapte|barista	batut kefir chefir sana ayran iaurt praf condensat ciocolat* cacao cafea frappe bautura vegetal* soia ovaz migdale cocos orez detergent capsule gel corp demachiant frisca smantana branza unt biscuit* napolitan* cereale budinca cioco* caramel* vanil* capsuni banane aroma* proteic* capra oaie bivolita	fat 0-0.9	10
-unt	Unt	Unt {fat}	Lactate	kg	200	unt	furs* biscuit* napolitan* crema arahide cacao shea corp tartin* margarina ciocolat* cozonac croissant* foietaj veget* mirodenii usturoi verdeata ierburi picant ardei aromat* chili chilli trufe capra oaie bivolita melanj melange leurda afumat creminos specialitate tart arah*	fat? 78-90	10
-unt-65	Unt 65%	Unt {fat}	Lactate	kg	200	unt	furs* biscuit* napolitan* crema arahide cacao shea corp tartin* margarina ciocolat* cozonac croissant* foietaj veget* mirodenii usturoi verdeata ierburi picant ardei aromat* chili chilli trufe capra oaie bivolita melanj melange leurda afumat creminos specialitate tart arah*	fat 55-77	10
+unt	Unt	Unt {fat}	Lactate	kg	200	unt	furs* biscuit* napolitan* crema arahide cacao shea corp tartin* margarina ciocolat* cozonac croissant* foietaj veget* mirodenii usturoi verdeata ierburi picant ardei aromat* chili chilli trufe capra oaie bivolita melanj melange leurda afumat creminos specialitate tart arah* popcorn cioco* praj* minipraj* caju migdal* alun* nuc* ar&car	fat? 78-90	10
+unt-65	Unt 65%	Unt {fat}	Lactate	kg	200	unt	furs* biscuit* napolitan* crema arahide cacao shea corp tartin* margarina ciocolat* cozonac croissant* foietaj veget* mirodenii usturoi verdeata ierburi picant ardei aromat* chili chilli trufe capra oaie bivolita melanj melange leurda afumat creminos specialitate tart arah* popcorn cioco* praj* minipraj* caju migdal* alun* nuc* ar&car	fat 55-77	10
 margarina	Margarină și grăsimi tartinabile	Margarină	Lactate	kg	250	margarina|rama|delma|becel|tartinabil*|melanj|melange	crema ciocolat* cacao		10
 oua	Ouă	Ouă {egg}	Ouă	buc	10	oua	galbenus albus praf ciocolat* kinder surpriz* prepelita pasta paste taitei lichide lichid pasteurizat*		10
 faina-000	Făină albă 000	Făină albă 000	Făină și orez	kg	1000	faina	mix pesmet gris malai drojdie maia	flour 000|480	10
@@ -26,6 +26,17 @@ orez-integral	Orez integral	Orez integral	Făină și orez	kg	1000	orez integral
 zahar	Zahăr	Zahăr	Zahăr	kg	1000	zahar	brun pudra trestie brut vanil* aroma scortisoara cocos gelifiant fara stick* candel masca par aromat* portoc* lamaie rom muscovado demerara melasa sirop light display cocos dark		10
 zahar-brun	Zahăr brun	Zahăr brun	Zahăr	kg	1000	zahar brun|trestie|brut|muscovado|demerara|dark	aroma scortisoara fara aromat* portoc* lamaie melasa sirop cocos light display		10
 zahar-pudra	Zahăr pudră	Zahăr pudră	Zahăr	kg	1000	zahar pudra	aroma fara aromat* portoc* melasa sirop light display rom		10
-ulei-floarea-soarelui	Ulei de floarea-soarelui	Ulei de floarea-soarelui	Ulei	l	1000	ulei floarea soarelui	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe masline		10
-ulei-masline-extravirgin	Ulei de măsline extravirgin	Ulei de măsline extravirgin	Ulei	l	1000	ulei masline extravirgin	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe		11
-ulei-masline	Ulei de măsline	Ulei de măsline	Ulei	l	1000	ulei masline	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe extravirgin		10
+ulei-floarea-soarelui	Ulei de floarea-soarelui	Ulei de floarea-soarelui	Ulei	l	1000	ulei floarea soarelui	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe masline ton sardin* macrou somon hering anson* peste pesti file		10
+ulei-masline-extravirgin	Ulei de măsline extravirgin	Ulei de măsline extravirgin	Ulei	l	1000	ulei masline extravirgin	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe ton sardin* macrou somon hering anson* peste pesti file		11
+ulei-masline	Ulei de măsline	Ulei de măsline	Ulei	l	1000	ulei masline	spray ardei cimbru usturoi rozmarin chili aroma* busuioc trufe extravirgin ton sardin* macrou somon hering anson* peste pesti file		10
+sunca-curcan	Șuncă de curcan	Șuncă de curcan	Mezeluri	kg	100	sunca curcan	pui porc vita salata pizza sandwich sendvici sos crema rulada omleta tortilla		10
+sunca-pui	Șuncă de pui	Șuncă de pui	Mezeluri	kg	100	sunca pui	curcan porc vita salata pizza sandwich sendvici sos crema rulada omleta tortilla		10
+sunca-porc	Șuncă de porc	Șuncă de porc	Mezeluri	kg	100	sunca porc	curcan pui vita salata pizza sandwich sendvici sos crema rulada omleta tortilla		10
+sunca-presata	Șuncă presată	Șuncă presată	Mezeluri	kg	100	sunca presata	salata pizza sandwich sendvici		10
+parizer	Parizer	Parizer	Mezeluri	kg	100	parizer	salata sandwich sendvici		10
+crenvursti	Crenvurști	Crenvurști	Mezeluri	kg	100	crenvurst*	aluat foietaj hot pizza		10
+salam-italian	Salam italian	Salam italian	Mezeluri	kg	100	salam italian	biscuiti ciocolat* pizza		10
+salam-sibiu	Salam de Sibiu	Salam de Sibiu	Mezeluri	kg	100	salam sibiu	biscuiti ciocolat* pizza		10
+bacon	Bacon	Bacon	Mezeluri	kg	100	bacon	chips* snack* sos crema aroma* pizza burger sandwich sendvici carnat* carnati		10
+piept-pui-afumat	Piept de pui afumat	Piept de pui afumat	Mezeluri	kg	100	piept pui afumat	salata pizza sandwich sendvici		10
+pastrama-curcan	Pastramă de curcan	Pastramă de curcan	Mezeluri	kg	100	pastrama curcan	salata pizza sandwich sendvici		10

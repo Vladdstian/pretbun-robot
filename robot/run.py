@@ -318,7 +318,12 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
         if conn.execute("SELECT products FROM zone_checks WHERE zone_id = ? AND day = ?", (zid, rep.day)).fetchone() != (n,):
             db.write(conn, "zone_checks", {"zone_id": zid, "day": rep.day, "products": n}, replace=True)
 
-    # 7. one daily file per area (latest + dated copy); products the cleaning rules can't fix are left out and listed
+    # 7. place today's products (kinds, sizes, the category check) BEFORE the files: placing them after (the old
+    # order) put every catalog fix in the app a day late (2026-11-10: chips still under Unt)
+    from .catalog import build as build_catalog
+    from .catalogdata import load as load_catalog
+    build_catalog(conn, load_catalog("catalog"), rep.day)
+    # 8. one daily file per area (latest + dated copy); products the cleaning rules can't fix are left out and listed
     hide = for_review(conn)
     write_review(conn, hide, out_dir)
     for a in areas:
