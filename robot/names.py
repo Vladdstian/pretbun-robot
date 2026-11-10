@@ -58,6 +58,20 @@ def _fat(norm: str):
     return None  # none, or several without a fat word: don't guess
 
 
+# not food (asked 2026-11-10: "clean the list"): shown only when searched for. Words or word starts in the name.
+NOT_FOOD = re.compile(r"\b(?:detergent|balsam rufe|balsam de rufe|sapun|sampon|gel de dus|gel dus|deodorant|antiperspirant|pasta de dinti|"
+                      r"pasta dinti|periuta|apa de gura|hartie igienica|prosoape de hartie|prosop|servetel|absorbant|tampoane|scutece|"
+                      r"chilotei|odorizant|insecticid|lumanar|balon|baloane|ornament|decor|ghirland|instalatie|beculet|bec |"
+                      r"pahare|farfurii|tacamuri|saci|pungi|folie alimentara|burete|laveta|lavete|mop|matura|faras|galeata|manusi|"
+                      r"baterii|baterie|cana |cutit|pix|caiet|jucari|crema de maini|crema de fata|crema de corp|lotiune|parfum|"
+                      r"ochelari|sosete|pantalon|slip|tricou|solutie de curatat|solutie curatat|inalbitor|clor|dezinfectant|"
+                      r"capsule de spalat|tablete vase|sare vase|lichid vase|detartrant|ariel|persil|lenor|domestos|vanish|"
+                      r"perwoll|pampers|huggies|colgate|palmolive|nivea|rexona|gillette|always|tampax|airwick|glade|dero|"
+                      r"bref|cif|mr proper|fairy|jar|finish det|finish tablete|finish capsule|finish quantum|calgon|silan|coccolino|lovela|fino|vileda|duracell|varta)\b")
+GIFT = re.compile(r"\b(?:set cadou|cos cadou|cutie cadou|pachet cadou|calendar advent|advent calendar|advent|gift|pachet promo|"
+                  r"promo pack|cadou)\b|^(?:pachet|set) ")
+
+
 def attrs(norm: str) -> dict:
     """Attributes read from a normalized name; a key is present only when its value is certain."""
     out, words = {}, norm.split()
@@ -74,6 +88,10 @@ def attrs(norm: str) -> dict:
         m = re.search(r"\bcod\s*([0-3])\b", norm)
         if m:
             out["code"] = int(m.group(1))
+    if NOT_FOOD.search(norm + " "):
+        out["nf"] = 1  # not food: shown only when the search asks for it
+    if GIFT.search(norm):
+        out["gift"] = 1  # gift boxes and promo bundles: their own group, never under a kind
     if {"bio", "eco", "organic", "ecologic", "ecologica", "ecologice"} & set(words):  # organic: the Bio filter (asked 2026-11-10)
         out["bio"] = 1
     if "faina" in words:

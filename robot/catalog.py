@@ -59,6 +59,8 @@ def _items(conn, cat) -> dict:
     return ids
 
 
+NOT_FOOD_CATEGORIES = {"DEZINFECTANTI", "MANUSI", "MASTI", "MASTI, MANUSI, DEZINFECTANTI"}
+
 # Official categories sold at the counter by weight: a product in one of them without a size is priced per kg (2026-11-10)
 BY_WEIGHT = {"PASARE", "PESTE", "PORC", "VITA", "GATITA", "MEZELURI - ALTELE", "CARNE PROCESATA - ALTELE", "PROASPETE - ALTELE"}
 
@@ -181,7 +183,9 @@ def _learned_kinds(conn, cat) -> int:
     brands = dict(conn.execute("SELECT id, name FROM brands"))
     rows = [(pid, cid, normalize(name, cat.abbrev), set(normalize(brands.get(bid) or "").split()), chains[pid], sq, su)
             for pid, name, cid, bid, sq, su in conn.execute(
-                "SELECT id, name, category_id, brand_id, size_qty, size_unit FROM products WHERE item_id IS NULL AND category_id IS NOT NULL")
+                "SELECT p.id, p.name, p.category_id, p.brand_id, p.size_qty, p.size_unit FROM products p "
+                "LEFT JOIN product_info i ON i.product_id = p.id WHERE p.item_id IS NULL AND p.category_id IS NOT NULL "
+                "AND COALESCE(i.attrs, '') NOT LIKE '%\"gift\"%'")
             if pid in chains]
     if not rows:
         return 0
@@ -237,7 +241,11 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
     for pid, name, old_title, brand_id, item_id, cid, sq, su, barcode in rows:
         n = normalize(name, cat.abbrev)
         at = read_attrs(n)
+        if (cat_names.get(cid) or "").upper() in NOT_FOOD_CATEGORIES:
+            at["nf"] = 1
         slug, _ = place(pid, n, at, cat)
+        if at.get("gift"):
+            slug = None  # "Pachet Unt Unirea 2x250 g + Unirea pentru creme": a bundle, not a butter
         _, forced_title, forced_brand = cat.overrides.get(pid, (None, None, None))
         size = parse_size(n) or (sq, su)
         if not size or not size[0]:
