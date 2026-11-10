@@ -8,7 +8,11 @@ import json
 import os
 from collections import defaultdict
 
+from math import log
+
 from robot.history import current_zone_prices
+from robot.names import normalize
+from robot.sizes import portion_size
 
 CHEAP = 10  # under a tenth of its kind's middle price per kg: a portion priced as the box (0,77 lei for 1 kg of butter).
 # shortcut: only too-cheap prices go to review while items still hold wrong products (rice next to sushi pushes the
@@ -34,6 +38,7 @@ def for_review(conn) -> dict:
             out[pid] = "fără mărime: nu se poate compara la kg sau litru"
         elif item is not None:
             kinds[(item, attrs, su)].append((bani * 1000 / sq if su in ("g", "ml") else bani / sq, pid))
+    names = dict(conn.execute("SELECT id, name FROM products"))
     for group in kinds.values():
         if len(group) < 3:
             continue
@@ -41,6 +46,15 @@ def for_review(conn) -> dict:
         for v, pid in group:
             if v * CHEAP < mid:
                 out[pid] = "preț ciudat: %.2f lei pe unitate față de %.2f obișnuit" % (v / 100, mid / 100)
+                continue
+            # a multipack whose price looks like one piece's ("4x0.33nrt" at 6,19 lei): the pack and the single piece are
+            # different products, so it is neither resized nor shown (2026-11-10 "don't mix")
+            sq, su = rows[pid][0], rows[pid][1]
+            part = portion_size(normalize(names.get(pid) or ""))
+            if part and part[1] == su and part[0] < sq and v * 2 < mid:
+                one = v * sq / part[0]
+                if abs(log(one / mid)) < abs(log(v / mid)):
+                    out[pid] = "preț de verificat: pare prețul unei bucăți, nu al pachetului"
     return out
 
 

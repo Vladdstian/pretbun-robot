@@ -114,9 +114,10 @@ def _fix_portions(conn, cat, medians: dict) -> int:
             kinds.setdefault((item, attrs, su), []).append(medians[pid] / sq)
     fixed = 0
     for pid, name, sq, su, item, attrs in rows:
-        group, part = kinds.get((item, attrs, su), []), portion_size(normalize(name, cat.abbrev))
-        if not part and sq >= 5000 and su in ("g", "ml"):
-            part = (1000, su)  # a bulk sack (Selgros, Metro) priced per kg
+        # 2026-11-10 "don't mix": a multipack priced like one piece keeps its size and goes to review (robot/review.py);
+        # only a bulk sack (Selgros, Metro: "Zahar 25 Kg" at 4,99 lei) is sold per kg, so it becomes 1 kg
+        group = kinds.get((item, attrs, su), [])
+        part = (1000, su) if sq >= 5000 and su in ("g", "ml") and not portion_size(normalize(name, cat.abbrev)) else None
         if pid not in medians or not part or part[1] != su or len(group) < 3:
             continue
         mid, price = median(group), medians[pid]
