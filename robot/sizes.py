@@ -38,6 +38,13 @@ def parse_size(name: str):
     if m:
         f, unit = _FACTOR[m.group(2)]
         return int(round(int(m.group(1)) * f)), unit
+    m = re.search(r"(?:(\d+)\s*x\s*)?(?<![\d.])(\d+(?:\.\d+)?)\s*(?:ls|nrt|ret|pet|doza)\b", s)  # drinks: "0.33ls", "0.75nrt", "4x0.33nrt"
+    if m:
+        v = float(m.group(2))
+        return int(round((v * 1000 if v < 10 else v) * int(m.group(1) or 1))), "ml"
+    m = re.search(r"\b(187|200|250|330|375|500|700|750|1000|1500)\s*$", s)  # a bottle's ml at the end: "vin 750"
+    if m and re.search(r"\b(?:vin|prosecco|spumant|sampanie|bere|whisky|vodka|votca|lichior|cognac|brandy|gin|rom|tuica|palinca|suc|apa)\b", s):
+        return int(m.group(1)), "ml"
     m = re.search(r"\b(\d+)\s*(?:buc|bucati)\b", s) or re.search(r"\*\s*(\d+)\b", s)
     if m:
         return int(m.group(1)), "buc"
