@@ -145,6 +145,22 @@ def _upsert_product(conn, pid: int, name: str, category_id=None, brand=None) -> 
     db.write(conn, "products", dict(id=pid, **new), replace=True)
 
 
+def _sizes_from_shop_names(conn, obs) -> None:
+    """A product without a pack size takes the size most shops' own names give it ("KETCHUP TOPDOWN 400ML HEINZ")."""
+    missing = {r[0] for r in conn.execute("SELECT id FROM products WHERE size_qty IS NULL")}
+    found = {}
+    for o in obs:
+        if o.product_id in missing:
+            size = parse_size(o.shop_name)
+            if size:
+                found.setdefault(o.product_id, Counter())[size] += 1
+    for pid, sizes in found.items():
+        qty, unit = sizes.most_common(1)[0][0]
+        row = conn.execute("SELECT name, category_id, brand_id, title, item_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
+        db.write(conn, "products", {"id": pid, "name": row[0], "category_id": row[1], "brand_id": row[2], "size_qty": qty,
+                                    "size_unit": unit, "title": row[3], "item_id": row[4], "barcode": row[5]}, replace=True)
+
+
 def tracked_ids(conn, staples: list) -> list:
     """Staples, favorites and products on promo now, each once, capped."""
     ids = list(staples) + [r[0] for r in conn.execute("SELECT ref FROM favorites WHERE kind = 'p'")]
@@ -285,6 +301,7 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
         if o.cat_id is not None and not conn.execute("SELECT 1 FROM categories WHERE id = ?", (o.cat_id,)).fetchone():
             db.write(conn, "categories", {"id": o.cat_id, "name": o.cat_name or str(o.cat_id), "parent_id": None})
         _upsert_product(conn, o.product_id, o.name, o.cat_id, o.brand or None)
+    _sizes_from_shop_names(conn, [o for o in all_obs if not o.odd and o.shop_name])
     days = [o.day for o in uniq if o.day is not None]
     rep.day = max(days) if days else run_day  # the date of the prices, not the machine clock
 

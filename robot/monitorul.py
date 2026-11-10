@@ -55,6 +55,7 @@ class Obs:
     cat_id: Optional[int] = None  # the official category ("FLOAREA SOARELUI"), the same for every shop
     cat_name: str = ""
     odd: bool = False  # the shop's own name describes another product: its price is not this product's
+    shop_name: str = ""  # the shop's own name for it; often longer than an official name cut at 20 characters
 
 
 def _words(text: str) -> list:
@@ -140,7 +141,7 @@ def parse_stores_with_prices(xml: bytes):
             o = Obs(sid, pid, official or _text(p, "Name"), _text(p, "Brand"),
                     to_bani(_text(p, "Price")) if price > 0 else None, 1 if _text(p, "Promo") else 0,
                     _day(_text(p, "Pricedate")), int(cat) if cat.isdigit() else None, _text(p, "Catprod/Prodcateg/Name").strip(),
-                    not same_product(official, _text(p, "Name")))
+                    not same_product(official, _text(p, "Name")), _text(p, "Name").strip())
             old = obs.get((sid, pid))
             # the same product twice in one store: the lowest price wins
             if old is None or (o.price_bani is not None and (old.price_bani is None or o.price_bani < old.price_bani)):
