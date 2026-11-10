@@ -5,13 +5,15 @@ python3 -m robot.catalog --db pretbun.sqlite --out reports [--everything]
 """
 from __future__ import annotations
 
+from collections import Counter
+
 import argparse
 import json
 import os
 from dataclasses import asdict, dataclass
 
 from . import db
-from .brands import BrandIndex
+from .brands import find_learned, learned_brands, BrandIndex
 from .catalogdata import catalog_hash, load
 from .dailyfile import write_daily
 from .items import tidy_name, place, title
@@ -81,6 +83,20 @@ def _complete_size(n: str, pid: int, index: dict, medians: dict):
     return sizes.pop() if len(sizes) == 1 else None
 
 
+def _own_brands(conn, cat, learned: dict) -> dict:
+    """Keep a learned brand only if most products whose names hold it carry that brand: "Agricola" is a maker, while
+    "Cartofi", which one shop puts in the brand field, names potatoes of many makers (2026-11-10)."""
+    holds, same = Counter(), Counter()
+    for name, brand in conn.execute("SELECT p.name, b.name FROM products p LEFT JOIN brands b ON b.id = p.brand_id"):
+        if not brand:
+            continue  # only products with a brand say what a word means
+        words, own = set(normalize(name, cat.abbrev).split()), normalize(brand)
+        for w in words & learned.keys():
+            holds[w] += 1
+            same[w] += own == w
+    return {k: v for k, v in learned.items() if " " in k or holds[k] == 0 or same[k] * 2 >= holds[k]}
+
+
 def _median_prices(conn) -> dict:
     """Each product's middle price today across the zones."""
     from robot.history import current_zone_prices
@@ -101,6 +117,8 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
                         + ("" if everything else " WHERE title IS NULL")).fetchall()
     medians = index = None
     cat_names = dict(conn.execute("SELECT id, name FROM categories"))
+    learned = _own_brands(conn, cat, learned_brands(conn.execute(
+        "SELECT b.name, COUNT(*) FROM products p JOIN brands b ON b.id = p.brand_id GROUP BY b.name")))
     for pid, name, old_title, brand_id, item_id, cid, sq, su, barcode in rows:
         n = normalize(name, cat.abbrev)
         at = read_attrs(n)
@@ -118,7 +136,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
             medians = medians if medians is not None else _median_prices(conn)
             if priced_per_piece(size, medians.get(pid)):
                 size = (1, "buc")
-        brand = forced_brand or brands.find(n, brand_names.get(brand_id))
+        brand = forced_brand or brands.find(n, brand_names.get(brand_id)) or find_learned(n, learned)
         shown = tuple(size) if size and size[0] else None  # the name shows the size the price is for
         new = (forced_title or (title(by_slug.get(slug), at, shown, name) if slug else tidy_name(n, shown)),
                _brand_id(conn, brand) if brand else brand_id, ids[slug] if slug else None) + tuple(size)
