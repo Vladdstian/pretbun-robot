@@ -39,11 +39,22 @@ def _sql_value(v) -> str:
     return "'" + str(v).replace("'", "''") + "'"
 
 
+# Tables the Worker never reads (checked 2026-11-10): kept in the robot's database and the R2 files only, never sent to D1,
+# whose free 100,000 writes a day are the scarcest resource. The Worker reads stores, zone_prices and store_prices (receipts).
+LOCAL_ONLY = frozenset({"products", "brands", "product_info", "item_info", "zone_checks", "zones", "chains", "areas", "categories",
+                        "items", "facts", "places", "place_prices", "product_sources", "rating_totals"})
+
+
+def _queue(conn, table: str, sql: str) -> None:
+    if table not in LOCAL_ONLY:
+        conn.execute("INSERT INTO outbox (sql) VALUES (?)", (sql,))
+
+
 def remove(conn: sqlite3.Connection, table: str, key: dict) -> None:
     """Delete rows locally and queue the same statement for D1 (deleting twice is harmless)."""
     sql = "DELETE FROM {} WHERE {}".format(table, " AND ".join("%s = %s" % (k, _sql_value(v)) for k, v in key.items()))
     conn.execute(sql)
-    conn.execute("INSERT INTO outbox (sql) VALUES (?)", (sql,))
+    _queue(conn, table, sql)
 
 
 def new_id(conn: sqlite3.Connection, table: str) -> int:
@@ -65,4 +76,4 @@ def write(conn: sqlite3.Connection, table: str, row: dict, replace: bool = False
     sql = "INSERT {}INTO {} ({}) VALUES ({})".format(
         "OR REPLACE " if replace else "", table, ", ".join(cols), ", ".join(_sql_value(row[c]) for c in cols))
     conn.execute(sql)
-    conn.execute("INSERT INTO outbox (sql) VALUES (?)", (sql,))
+    _queue(conn, table, sql)

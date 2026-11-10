@@ -4,7 +4,7 @@ name: robot
 
 on:
   schedule:  # three tries a day; once one works, the later ones skip
-    - cron: "30 3 * * *"  # 05:30 in Romania in winter, 06:30 in summer; prices are dated 04:00
+    - cron: "0 2 * * *"  # 04:00 in Romania in winter (05:00 in summer), when the day's official prices are out (asked: 03:00-04:00)
     - cron: "0 12 * * *"  # 14:00: only if today's run hasn't worked yet
     - cron: "0 17 * * *"  # 19:00: the same
   workflow_dispatch:
@@ -212,7 +212,7 @@ jobs:
           if [ -d raw ]; then tar czf raw.tar.gz raw && wrangler r2 object put pretbun/raw/last.tar.gz --file raw.tar.gz --remote; fi
           for f in reports/* app/*; do wrangler r2 object put "pretbun/$f" --file "$f" --remote; done  # reports; app files on Sundays
 
-      - name: Send the changes to D1 (70,000 a day for the robot; 30,000 stay for people; the rest wait for the next days)
+      - name: Send the changes to D1 (40,000 a day for the robot; 60,000 stay for people; the rest wait for the next days)
         if: steps.guard.outputs.level != 'stop'
         run: |
           wrangler d1 info pretbun --json > d1-now.json 2>/dev/null || rm -f d1-now.json  # what D1 already wrote today, people included

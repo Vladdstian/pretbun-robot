@@ -29,10 +29,19 @@ def sent_today(conn, today: str) -> int:
     return int(m.get("d1_sent", 0)) if m.get("d1_day") == today else 0
 
 
+def _drop_local(conn) -> None:
+    """Statements for tables that stay local (queued before 2026-11-10) are never sent."""
+    from robot.db import LOCAL_ONLY
+    for t in LOCAL_ONLY:
+        conn.execute("DELETE FROM outbox WHERE sql LIKE ? OR sql LIKE ? OR sql LIKE ?",
+                     ("INSERT INTO %s %%" % t, "INSERT OR REPLACE INTO %s %%" % t, "DELETE FROM %s %%" % t))
+
+
 def export_outbox(conn, path: str, budget: int = 70000, today: str = None):
     """Schema + the waiting statements, oldest first, up to what is left of today's budget.
     Returns (count, last seq); (0, 0) when none wait or the day's budget is used up."""
     left = max(0, budget - sent_today(conn, today or _utc_today()))
+    _drop_local(conn)
     rows = conn.execute("SELECT seq, sql FROM outbox ORDER BY seq LIMIT ?", (left,)).fetchall()
     with open(path, "w", encoding="utf-8") as f:
         f.write(_d1_schema())
@@ -54,7 +63,7 @@ def mark_sent(conn, upto_seq: int, today: str = None) -> None:
     conn.commit()
 
 
-def budget_from_info(path: str, cap: int = 70000, ceiling: int = 90000, unknown: int = 30000) -> int:
+def budget_from_info(path: str, cap: int = 40000, ceiling: int = 70000, unknown: int = 30000) -> int:  # 2026-11-10: D1 was at 75% a day
     """How many changes to send now: never more than `cap`, and never past `ceiling` counting what D1 says it already wrote
     in the last 24 h (people's sign-ups, lists and receipts included). Unreadable info → a safe `unknown`."""
     try:
@@ -75,7 +84,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     conn = db.connect(args.db)
     if args.command == "export":
-        n, last = export_outbox(conn, args.out, budget=budget_from_info(args.d1_info) if args.d1_info else 70000)
+        n, last = export_outbox(conn, args.out, budget=budget_from_info(args.d1_info) if args.d1_info else 40000)
         left = conn.execute("SELECT COUNT(*) FROM outbox").fetchone()[0] - n
         print("%d changes for D1 (%d already sent today, UTC), %d wait for the next days"
               % (n, sent_today(conn, _utc_today()), left), file=sys.stderr)
