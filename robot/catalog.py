@@ -18,7 +18,8 @@ from . import db
 from .brands import find_learned, learned_brands, BrandIndex
 from .catalogdata import catalog_hash, load
 from .dailyfile import write_daily
-from .items import tidy_name, place, title
+from .items import size_text, tidy_name, place, title
+from .kinds import brand_starts, learn, middle_words
 from .names import attrs as read_attrs, normalize
 from .run import _brand_id, ro_today
 from .sizes import parse_size, portion_size, priced_per_piece
@@ -156,6 +157,49 @@ def _check_categories(conn, cat, share: float = 0.10, at_least: int = 10) -> int
     return n
 
 
+def _learned_kinds(conn, cat) -> int:
+    """Products no hand-written item placed get a kind learned from the data (robot/kinds.py): "Șuncă de curcan"."""
+    day = conn.execute("SELECT MAX(day) FROM zone_prices").fetchone()[0]
+    if day is None:
+        return 0
+    chains = {}
+    for pid, ch in conn.execute("SELECT zp.product_id, z.chain_id FROM zone_prices zp JOIN zones z ON z.id = zp.zone_id "
+                                "WHERE zp.day >= ? AND zp.price IS NOT NULL", (day - 7,)):
+        chains.setdefault(pid, set()).add(ch)
+    brands = dict(conn.execute("SELECT id, name FROM brands"))
+    rows = [(pid, cid, normalize(name, cat.abbrev), set(normalize(brands.get(bid) or "").split()), chains[pid], sq, su)
+            for pid, name, cid, bid, sq, su in conn.execute(
+                "SELECT id, name, category_id, brand_id, size_qty, size_unit FROM products WHERE item_id IS NULL AND category_id IS NOT NULL")
+            if pid in chains]
+    if not rows:
+        return 0
+    got = learn([r[:5] for r in rows], leading=brand_starts(normalize(b) for b in brands.values()),
+                middle=middle_words(normalize(n, cat.abbrev) for (n,) in conn.execute("SELECT name FROM products")))
+    ids = dict(conn.execute("SELECT slug, item_id FROM item_info"))
+    nxt = max([0] + list(ids.values()) + [conn.execute("SELECT COALESCE(MAX(id), 0) FROM items").fetchone()[0]]) + 1
+    shelf = dict(conn.execute("SELECT id, name FROM categories"))
+    units = {}
+    for pid, cid, _, _, _, sq, su in rows:
+        if pid in got:
+            units.setdefault(got[pid][0], Counter())[{"g": "kg", "ml": "l"}.get(su, "buc")] += 1
+    n = 0
+    for pid, cid, norm, _, _, sq, su in rows:
+        if pid not in got:
+            continue
+        slug, name = got[pid]
+        if slug not in ids:
+            ids[slug], nxt = nxt, nxt + 1
+            db.write(conn, "items", {"id": ids[slug], "name": name, "unit": units[slug].most_common(1)[0][0]}, replace=True)
+            db.write(conn, "item_info", {"item_id": ids[slug], "slug": slug, "shelf": (shelf.get(cid) or "").capitalize(),
+                                         "size": None, "typical": None}, replace=True)
+        row = conn.execute("SELECT name, brand_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
+        db.write(conn, "products", {"id": pid, "name": row[0], "title": name + (" · " + size_text((sq, su)) if sq else ""),
+                                    "brand_id": row[1], "item_id": ids[slug], "category_id": cid, "size_qty": sq,
+                                    "size_unit": su, "barcode": row[2]}, replace=True)
+        n += 1
+    return n
+
+
 def _median_prices(conn) -> dict:
     """Each product's middle price today across the zones."""
     from robot.history import current_zone_prices
@@ -213,6 +257,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
         rep.unplaced += slug is None
     _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
     _check_categories(conn, cat)
+    _learned_kinds(conn, cat)
     _meta(conn, "catalog_hash", h)
     if out:
         _reports(conn, cat, out)

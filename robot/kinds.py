@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 # words that say how it is packed or sold, never what it is
 FILLER = set("""feliat feliata feliate vrac kg gastro ambalat ambalata atm vid punga caserola tava bax pet doza sticla
 cutie borcan buc bucata bucati set pachet promo oferta nou noua extra premium clasic clasica traditional traditionala
-superior superioara fa cu ia cu/ia aprox pret sgr pv dz act""".split())
+superior superioara fa cu ia cu/ia aprox pret sgr pv dz act bio eco organic ecologic ecologica""".split())
 JOIN = {"de", "din", "cu", "si", "in", "la", "pentru", "fara"}
 # common words, written with their diacritics for the kind's name
 PRETTY = {"sunca": "șuncă", "branza": "brânză", "paine": "pâine", "piine": "pâine", "carnati": "cârnați", "muschi": "mușchi",
@@ -39,7 +39,8 @@ PRETTY = {"sunca": "șuncă", "branza": "brânză", "paine": "pâine", "piine": 
           "ceafa": "ceafă", "cotlet": "cotlet", "coaste": "coaste", "fructe": "fructe", "legume": "legume", "mix": "mix",
           "bautura": "băutură", "blonda": "blondă", "bruna": "brună", "rosu": "roșu", "topita": "topită", "prajita": "prăjită",
           "padure": "pădure", "fructata": "fructată", "macinat": "măcinat", "solutie": "soluție", "vaca": "vacă",
-          "ochelari": "ochelari", "sapunul": "săpunul", "gris": "griș", "orez": "orez", "mamaliga": "mămăligă"}
+          "ochelari": "ochelari", "sapunul": "săpunul", "gris": "griș", "orez": "orez", "mamaliga": "mămăligă", "sare": "sare", "mici": "mici",
+          "umpluta": "umplută", "cremoasa": "cremoasă", "zacusca": "zacuscă", "napolitana": "napolitană", "ciorba": "ciorbă"}
 
 _DIGIT = re.compile(r"\d")
 
@@ -49,7 +50,7 @@ def kind_words(norm: str, brand_words: set, leading: frozenset = frozenset()) ->
     `leading`: words known as brands elsewhere ("ariel", "colgate"), skipped only before the kind starts."""
     out = []
     for w in norm.split():
-        if _DIGIT.search(w) or w in FILLER or w in brand_words or len(w) < 3 or (not out and w in leading):
+        if _DIGIT.search(w) or w in FILLER or w in brand_words or (len(w) < 3 and w not in JOIN) or (not out and w in leading):
             if out:  # the kind is the start of the name; a size or packing word ends it
                 break
             continue
@@ -80,10 +81,26 @@ def brand_starts(brand_names) -> frozenset:
     return frozenset(out)
 
 
-def learn(rows, at_least: int = 5, min_sources: int = 2, leading: frozenset = frozenset()) -> dict:
-    """rows: (product id, category id, normalized name, brand words, chain count or brand id).
-    -> {product id: (slug, name)} for products whose kind is shared by `at_least` products of one category that come
-    from at least `min_sources` different brands or shops (one unknown brand's range is not a kind)."""
+# words too broad to be a kind alone: "Piept" needs "pui", "Sos" needs "tomate"
+BROAD = set("""salata sos crema piept pulpe pulpa mix baton bautura ulei apa pasta paste glob set ornament spray solutie
+gel cutie punga file fructe legume carne branza suc ceai cafea vin bere sirop tort""".split())
+
+
+def middle_words(norms) -> Counter:
+    """How often each word sits inside a name (not first, not last): kind words do ("danone iaurt natural"),
+    brand words don't (first or last: "ariel detergent", "sunca curcan pikok")."""
+    c = Counter()
+    for n in norms:
+        w = n.split()
+        for x in w[1:-1]:
+            c[x] += 1
+    return c
+
+
+def learn(rows, at_least: int = 5, min_sources: int = 2, leading: frozenset = frozenset(), middle: Counter = None) -> dict:
+    """rows: (product id, category id, normalized name, brand words, set of chains selling it).
+    -> {product id: (slug, name)} for products whose kind is shared by `at_least` products of one category, sold in at
+    least `min_sources` chains (one shop's abbreviation or private range is not a kind)."""
     groups, phrases = defaultdict(list), defaultdict(Counter)
     for pid, cid, norm, brand_words, source in rows:
         words = kind_words(norm, brand_words, leading)
@@ -97,7 +114,10 @@ def learn(rows, at_least: int = 5, min_sources: int = 2, leading: frozenset = fr
         phrases[(cid, key)][" ".join(words[:end])] += 1
     out = {}
     for (cid, key), members in groups.items():
-        if len(members) < at_least or len({s for _, s in members}) < min_sources:
+        chains = set().union(*(s for _, s in members))  # a kind is sold by more than one chain
+        first, n_core = key.split()[0], len(key.split())
+        if len(members) < at_least or len(chains) < min_sources or (n_core == 1 and first in BROAD) \
+                or (middle is not None and first not in PRETTY and (middle[first] < 3 or len(first) < 4)):
             continue
         name = pretty(phrases[(cid, key)].most_common(1)[0][0])
         slug = "auto-" + key.replace(" ", "-")
