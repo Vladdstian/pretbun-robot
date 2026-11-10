@@ -17,7 +17,7 @@ from .dailyfile import write_daily
 from .items import tidy_name, place, title
 from .names import attrs as read_attrs, normalize
 from .run import _brand_id, ro_today
-from .sizes import parse_size
+from .sizes import priced_per_piece, parse_size
 
 FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalog")
 
@@ -54,6 +54,16 @@ def _items(conn, cat) -> dict:
     return ids
 
 
+def _median_prices(conn) -> dict:
+    """Each product's middle price today across the zones."""
+    from robot.history import current_zone_prices
+    by = {}
+    for (_, pid), (price, _) in current_zone_prices(conn).items():
+        if price is not None:
+            by.setdefault(pid, []).append(price)
+    return {pid: sorted(v)[len(v) // 2] for pid, v in by.items()}
+
+
 def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, out: str = None) -> Report:
     rep = Report()
     h = catalog_hash(folder)
@@ -62,14 +72,20 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
     brand_names = dict(conn.execute("SELECT id, name FROM brands"))
     rows = conn.execute("SELECT id, name, title, brand_id, item_id, category_id, size_qty, size_unit, barcode FROM products"
                         + ("" if everything else " WHERE title IS NULL")).fetchall()
+    medians = None
     for pid, name, old_title, brand_id, item_id, cid, sq, su, barcode in rows:
         n = normalize(name, cat.abbrev)
         at = read_attrs(n)
         slug, _ = place(pid, n, at, cat)
         _, forced_title, forced_brand = cat.overrides.get(pid, (None, None, None))
         size = parse_size(n) or (sq, su)
+        if slug and slug.startswith("oua"):  # eggs priced per egg ("Oua L*10" at 0,62 lei): the pack is one egg
+            medians = medians if medians is not None else _median_prices(conn)
+            if priced_per_piece(size, medians.get(pid)):
+                size = (1, "buc")
         brand = forced_brand or brands.find(n, brand_names.get(brand_id))
-        new = (forced_title or (title(by_slug.get(slug), at, parse_size(n), name) if slug else tidy_name(n, parse_size(n))),
+        shown = tuple(size) if size and size[0] else None  # the name shows the size the price is for
+        new = (forced_title or (title(by_slug.get(slug), at, shown, name) if slug else tidy_name(n, shown)),
                _brand_id(conn, brand) if brand else brand_id, ids[slug] if slug else None) + tuple(size)
         if new != (old_title, brand_id, item_id, sq, su):
             db.write(conn, "products", {"id": pid, "name": name, "title": new[0], "brand_id": new[1], "item_id": new[2],

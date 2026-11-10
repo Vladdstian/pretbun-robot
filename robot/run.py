@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import db
 from .channels import forget_app
+from .review import for_review, write as write_review
 from .dailyfile import build_daily, distance_km, write_daily
 from .history import apply_store, apply_zone, current_store_prices, current_zone_prices
 from .monitorul import Client, parse_catalog, parse_categories, parse_stores_with_prices
@@ -300,9 +301,11 @@ def run(conn, client, areas: list, weekly: bool, out_dir: str, staples=(), categ
         if conn.execute("SELECT products FROM zone_checks WHERE zone_id = ? AND day = ?", (zid, rep.day)).fetchone() != (n,):
             db.write(conn, "zone_checks", {"zone_id": zid, "day": rep.day, "products": n}, replace=True)
 
-    # 7. one daily file per area (latest + dated copy)
+    # 7. one daily file per area (latest + dated copy); products the cleaning rules can't fix are left out and listed
+    hide = for_review(conn)
+    write_review(conn, hide, out_dir)
     for a in areas:
-        data = build_daily(conn, a, rep.day)
+        data = build_daily(conn, a, rep.day, hide)
         rep.files[a["name"]] = write_daily(os.path.join(out_dir, a["name"], "latest.json.gz"), data)
         write_daily(os.path.join(out_dir, a["name"], db.day_to_date(rep.day).isoformat() + ".json.gz"), data)
     conn.commit()

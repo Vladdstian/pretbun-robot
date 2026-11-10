@@ -39,7 +39,8 @@ def _products(conn, used) -> list:
 
 
 
-def build_daily(conn, area: dict, day: int) -> dict:
+def build_daily(conn, area: dict, day: int, hide=frozenset()) -> dict:
+    """hide: products on the review list (robot/review.py), left out of the file."""
     radius_km = area.get("radius_m", 5000) / 1000.0
     stores = []
     for sid, chain_id, zone_id, name, address, lat, lon, typ in conn.execute(
@@ -50,12 +51,12 @@ def build_daily(conn, area: dict, day: int) -> dict:
     zone_ids = sorted({s[2] for s in stores})
     prices, used = {}, set()
     for zone_id, pid, price, promo in sorted(_latest_on(conn, "zone_prices", "zone_id", zone_ids, day)):
-        if price is not None:
+        if price is not None and pid not in hide:
             prices.setdefault(str(zone_id), []).append([pid, price, promo])
             used.add(pid)
     exceptions = []
     for sid, pid, price, promo in sorted(_latest_on(conn, "store_prices", "store_id", [s[0] for s in stores], day)):
-        if price is not None:  # NULL = back to the zone price
+        if price is not None and pid not in hide:  # NULL = back to the zone price
             exceptions.append([sid, pid, None if price == NOT_SOLD_HERE else price, promo])
             used.add(pid)
     row = conn.execute("SELECT id FROM areas WHERE name = ?", (area["name"],)).fetchone()

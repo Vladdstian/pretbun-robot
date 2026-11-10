@@ -33,7 +33,7 @@ def _holds(cond: tuple, attrs: dict) -> bool:
         return False
 
 
-WITH, MADE_OF = {"cu", "si", "aroma"}, {"sos", "crema", "aroma"}  # "biscuiți cu unt", "sos de unt": made with the item, not the item
+WITH, MADE_OF = {"cu", "si", "aroma", "fara", "fr", "fz"}, {"sos", "crema", "aroma"}  # "biscuiți cu unt", "sos de unt": made with the item; "fără zahăr" (fr, fz): without it
 
 
 def _as_ingredient(seq: list, i: int) -> bool:

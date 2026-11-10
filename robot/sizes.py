@@ -30,4 +30,11 @@ def parse_size(name: str):
     m = re.search(r"\b(\d+)\s*(?:buc|bucati)\b", s) or re.search(r"\*\s*(\d+)\b", s)
     if m:
         return int(m.group(1)), "buc"
+    if re.search(r"(?:\bkg|\bvrac)\s*$|/\s*kg\b|\bla kg\b|\bper kg\b", s):  # sold by weight: the price is per kg
+        return 1000, "g"
     return None
+
+
+def priced_per_piece(size, price_bani, cheap: int = 35) -> bool:
+    """A pack of N pieces whose price is under 0,35 lei a piece (eggs): the shop gave the price of one piece."""
+    return bool(size) and size[1] == "buc" and size[0] > 1 and price_bani is not None and price_bani / size[0] < cheap
