@@ -85,6 +85,7 @@ _SIZE_WORD = re.compile(r"^\d+(?:[.,]\d+)?(?:x\d+(?:[.,]\d+)?)?(?:g|gr|kg|ml|l|c
 
 def tidy_name(norm: str, size) -> str:
     """A product with no item: its normalized words (abbreviations spelled out), the pack size moved to the end."""
+    norm = re.sub(r"\b(?:\d+ )*\d+ ?x\b", " ", norm)  # pack counts: "6x", "5 1 x"
     words = [w for w in norm.split() if not _SIZE_WORD.match(w)]
     text = " ".join(words)
     return text[:1].upper() + text[1:] + (" · " + size_text(size) if size else "")

@@ -104,6 +104,7 @@ def _fix_portions(conn, cat, medians: dict) -> int:
     """A multipack priced per portion: its price per kg is under a tenth of its kind's while the portion's price per kg
     fits ("Meggle Unt 100x10g" at 0,77 lei) -> the pack is one portion; a sack of 5 kg or more priced per kg ("Zahar 25 Kg"
     at 4,99 lei) -> 1 kg. Returns how many were fixed."""
+    from math import log
     from statistics import median
     rows = conn.execute("SELECT p.id, p.name, p.size_qty, p.size_unit, p.item_id, i.attrs FROM products p "
                         "LEFT JOIN product_info i ON i.product_id = p.id WHERE p.item_id IS NOT NULL AND p.size_qty > 0").fetchall()
@@ -119,10 +120,15 @@ def _fix_portions(conn, cat, medians: dict) -> int:
         if pid not in medians or not part or part[1] != su or len(group) < 3:
             continue
         mid, price = median(group), medians[pid]
-        if price / sq * 10 < mid and mid / 4 <= price / part[0] <= mid * 4:
+        # priced per piece when one piece's price per unit sits closer to the kind's usual price than the pack's does
+        # (a 4-pack priced per bottle is only 4 times off; 2026-11-10 "Budweiser 4x0.33nrt" at 6,19 lei)
+        off = lambda q: abs(log(price / q / mid))
+        if price / sq * 2 < mid and off(part[0]) < off(sq) and mid / 4 <= price / part[0] <= mid * 4:
             row = conn.execute("SELECT name, title, brand_id, item_id, category_id, barcode FROM products WHERE id = ?", (pid,)).fetchone()
+            old = " · " + size_text((sq, su))
+            t = row[1][: -len(old)] + " · " + size_text(part) if row[1] and row[1].endswith(old) else row[1]
             db.write(conn, "products", dict(zip(("name", "title", "brand_id", "item_id", "category_id", "barcode"), row),
-                                            id=pid, size_qty=part[0], size_unit=part[1]), replace=True)
+                                            id=pid, title=t, size_qty=part[0], size_unit=part[1]), replace=True)
             fixed += 1
     return fixed
 
@@ -261,9 +267,9 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
             rep.changed += 1
         rep.placed += slug is not None
         rep.unplaced += slug is None
-    _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
     _check_categories(conn, cat)
     _learned_kinds(conn, cat)
+    _fix_portions(conn, cat, medians if medians is not None else _median_prices(conn))
     _meta(conn, "catalog_hash", h)
     if out:
         _reports(conn, cat, out)

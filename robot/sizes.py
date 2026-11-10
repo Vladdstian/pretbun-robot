@@ -21,7 +21,11 @@ def parse_size(name: str):
             if m:
                 return int(m.group(1)), "buc"
         s = re.sub(r"\b\d+\s*/?\s*l\b", " ", s)
-    s = re.sub(r"\b(\d+)\s*l\s+(?=\d+\s*(?:g|gr)\b)", "", s)  # baby food "7l 160g": 7 months, then the weight
+    s = re.sub(r"\b(\d+)\s*l\s+(?=\d+\s*(?:g|gr)\b)", "", s)
+    m = re.search(r"\b(\d+) (\d+) x\s*" + _NUM + r"\s*(l|ml|dz|doza)\b", s)  # promo "(5+1) x 0.33l" = six
+    if m:
+        v = _num(m.group(3))
+        return int(round((v * 1000 if v < 10 else v) * (int(m.group(1)) + int(m.group(2))))), "ml"  # baby food "7l 160g": 7 months, then the weight
     m = re.search(r"(?<!cod )\b(\d+)\s*[x*]\s*" + _NUM + r"\s*(l|ml|kg|gr|g|buc|bucati)\b", s)  # 6x0.5l, 10*10g, 6x30buc
     if m:
         f, unit = _FACTOR[m.group(3)]
@@ -38,7 +42,7 @@ def parse_size(name: str):
     if m:
         f, unit = _FACTOR[m.group(2)]
         return int(round(int(m.group(1)) * f)), unit
-    m = re.search(r"(?:(\d+)\s*x\s*)?(?<![\d.])(\d+(?:\.\d+)?)\s*(?:ls|nrt|ret|pet|doza)\b", s)  # drinks: "0.33ls", "0.75nrt", "4x0.33nrt"
+    m = re.search(r"(?:(\d+)\s*x\s*)?(?<![\d.])(\d+(?:\.\d+)?)\s*(?:ls|nrt|ret|pet|doza|dz)\b", s)  # drinks: "0.33ls", "0.75nrt", "4x0.33nrt", "6x0.33dz"
     if m:
         v = float(m.group(2))
         return int(round((v * 1000 if v < 10 else v) * int(m.group(1) or 1))), "ml"
@@ -61,10 +65,14 @@ def priced_per_piece(size, price_bani, cheap: int = 35) -> bool:
 def portion_size(name: str):
     """One portion of a multipack ("100x10g" -> (10, "g")); None when the name has no NxM size."""
     m = re.search(r"(?<!cod )\b(\d+)\s*[x*]\s*" + _NUM + r"\s*(l|ml|kg|gr|g)\b", name.lower())
-    if not m or int(m.group(1)) < 2:
-        return None
-    f, unit = _FACTOR[m.group(3)]
-    return int(round(_num(m.group(2)) * f)), unit
+    if m and int(m.group(1)) >= 2:
+        f, unit = _FACTOR[m.group(3)]
+        return int(round(_num(m.group(2)) * f)), unit
+    m = re.search(r"(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(?:ls|nrt|ret|pet|doza|dz)\b", name.lower())  # drinks "4x0.33nrt"
+    if m and int(m.group(1)) >= 2:
+        v = float(m.group(2))
+        return int(round(v * 1000 if v < 10 else v)), "ml"
+    return None
 
 
 def by_weight(name: str) -> bool:

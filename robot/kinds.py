@@ -76,7 +76,7 @@ def brand_starts(brand_names) -> frozenset:
     out = set()
     for n in brand_names:
         w = (n or "").split()
-        if w and len(w[0]) >= 3 and w[0] not in PRETTY and w[0] not in JOIN:
+        if w and len(w[0]) >= 3 and w[0] not in PRETTY and w[0] not in JOIN and w[0] not in BROAD:  # "Bere Ciuc": bere stays a kind word
             out.add(w[0])
     return frozenset(out)
 
