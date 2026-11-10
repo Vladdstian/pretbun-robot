@@ -40,6 +40,7 @@ def normalize(name: str, abbrev: dict = None) -> str:
     s = re.sub(r"(?:^|(?<=\s))[-+]\s*\d+(?:\.\d+)?\s*%", " ", s)     # discount "-20%", bonus "+ 10%"
     s = re.sub(r"([a-z])(\d)", r"\1 \2", s)                          # cio280g -> cio 280g, cod2 -> cod 2
     s = re.sub(r"%(?=\S)", "% ", s)                                  # 3.5%1000 -> 3.5% 1000
+    s = re.sub(r"(\d)(ml|gr|g|kg)(?=[a-z]{3,})", r"\1\2 ", s)          # 500gboromir -> 500g boromir (the brand)
     s = re.sub(r"[^a-z0-9.%*\s]", " ", s)                            # punctuation -> space
     s = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", s)                        # dots that aren't decimal points
     s = s.replace("*", " * ")                                        # oua*10 -> oua * 10

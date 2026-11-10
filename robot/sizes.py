@@ -27,6 +27,10 @@ def parse_size(name: str):
     if m:
         f, unit = _FACTOR[m.group(2)]
         return int(round(_num(m.group(1)) * f)), unit
+    m = re.search(r"(?<![\d.,%])(\d{2,4})(ml|gr|g|kg)(?=[a-z]{3,})", s)  # glued to the next word: "264goreo", "350gpronat"
+    if m:
+        f, unit = _FACTOR[m.group(2)]
+        return int(round(int(m.group(1)) * f)), unit
     m = re.search(r"\b(\d+)\s*(?:buc|bucati)\b", s) or re.search(r"\*\s*(\d+)\b", s)
     if m:
         return int(m.group(1)), "buc"
