@@ -14,7 +14,7 @@ from . import db
 from .brands import BrandIndex
 from .catalogdata import catalog_hash, load
 from .dailyfile import write_daily
-from .items import place, title
+from .items import tidy_name, place, title
 from .names import attrs as read_attrs, normalize
 from .run import _brand_id, ro_today
 from .sizes import parse_size
@@ -69,7 +69,7 @@ def build(conn, cat, day: int, everything: bool = False, folder: str = FOLDER, o
         _, forced_title, forced_brand = cat.overrides.get(pid, (None, None, None))
         size = parse_size(n) or (sq, su)
         brand = forced_brand or brands.find(n, brand_names.get(brand_id))
-        new = (forced_title or title(by_slug.get(slug), at, parse_size(n), name),
+        new = (forced_title or (title(by_slug.get(slug), at, parse_size(n), name) if slug else tidy_name(n, parse_size(n))),
                _brand_id(conn, brand) if brand else brand_id, ids[slug] if slug else None) + tuple(size)
         if new != (old_title, brand_id, item_id, sq, su):
             db.write(conn, "products", {"id": pid, "name": name, "title": new[0], "brand_id": new[1], "item_id": new[2],

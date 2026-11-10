@@ -6,6 +6,8 @@ to the review list: an unplaced product is still found by name, a wrong item mis
 """
 from __future__ import annotations
 
+import re
+
 
 def _hit(token: str, words: set) -> bool:
     for alt in token.split("|"):
@@ -76,6 +78,16 @@ def size_text(size) -> str:
     if unit == "g":
         return "%s kg" % _num(qty / 1000) if qty >= 1000 else "%d g" % qty
     return "%d buc" % qty
+
+
+_SIZE_WORD = re.compile(r"^\d+(?:[.,]\d+)?(?:x\d+(?:[.,]\d+)?)?(?:g|gr|kg|ml|l|cl|buc)$")
+
+
+def tidy_name(norm: str, size) -> str:
+    """A product with no item: its normalized words (abbreviations spelled out), the pack size moved to the end."""
+    words = [w for w in norm.split() if not _SIZE_WORD.match(w)]
+    text = " ".join(words)
+    return text[:1].upper() + text[1:] + (" · " + size_text(size) if size else "")
 
 
 def title(item, attrs: dict, size, shop_name: str) -> str:
